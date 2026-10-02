@@ -10,7 +10,8 @@ import { LAGRANGE_ND, L_STAR_KM, MU, ORBITS, orbitOutlineND, R_EARTH_KM, R_GEO_K
 import { MOCK_T0_MS } from './mockArchitecture';
 import { CANDIDATE_ORBITS, type ArchitectureDef, type CandidateOrbit } from './types';
 
-const VB = { x0: -0.42, x1: 1.5, y0: -0.86, y1: 0.86 };
+// y range reaches past L4/L5 (y = ±0.866) so their markers sit inside the plot, clear of the caption and the x-axis.
+const VB = { x0: -0.42, x1: 1.5, y0: -0.95, y1: 0.95 };
 const W = 960;
 const H = Math.round((W * (VB.y1 - VB.y0)) / (VB.x1 - VB.x0));
 const sx = (x: number) => ((x - VB.x0) / (VB.x1 - VB.x0)) * W;
@@ -102,7 +103,7 @@ export function SystemPlot({ arch }: { arch: ArchitectureDef | null }) {
             <rect x={px - 6} y={py - 6} width={12} height={12} transform={`rotate(45 ${px} ${py})`} fill="var(--accent)" stroke="var(--bg)" strokeWidth={2} />
             <text x={px + 10} y={py - 8} className="sp-label accent">
               S{i + 1} · m
-              <tspan baselineShift="sub" fontSize="80%">
+              <tspan baselineShift="sub" fontSize="11px">
                 lim
               </tspan>{' '}
               {s.limiting_mag.toFixed(1)}

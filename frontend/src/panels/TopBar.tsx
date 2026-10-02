@@ -3,7 +3,8 @@ import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { useBackendStatus } from '../api/client';
 import { resetDemo, startDemo } from '../demo/useDemoDriver';
-import { familyColor } from '../scene/constants';
+import { familyColor, familyLabel, NRHO_COLOR } from '../scene/constants';
+import { isNrho92, thinnedMembers } from '../scene/OrbitFamilies';
 import { useSelene, type Layers } from '../store/useSelene';
 
 const LAYER_LABELS: { key: keyof Layers; label: string; title: string }[] = [
@@ -41,35 +42,72 @@ export function NavLinks() {
 function FamilyLegend() {
   const families = useSelene((s) => s.families);
   const highlight = useSelene((s) => s.highlightFamily);
+  const hidden = useSelene((s) => s.hiddenFamilies);
   const setHighlight = useSelene((s) => s.setHighlightFamily);
+  const toggleVisible = useSelene((s) => s.toggleFamilyVisible);
+  const setVisible = useSelene((s) => s.setFamilyVisible);
   const [open, setOpen] = useState(false);
   if (!families || families.families.length === 0) return null;
+  const nrho = families.families.flatMap((f) => f.members).find(isNrho92);
+  const nHidden = hidden.filter((h) => families.families.some((f) => f.name === h)).length;
   return (
     <div className="legend-chip" onMouseLeave={() => setOpen(false)}>
-      <button className={`toggle${open || highlight ? ' active' : ''}`} onClick={() => setOpen((v) => !v)} title="Orbit-family legend (click a family to highlight)">
+      <button className={`toggle${open || highlight ? ' active' : ''}`} onClick={() => setOpen((v) => !v)} title="Orbit-family legend: show/hide families, click a name to highlight">
         <span className="swatches">
-          {families.families.slice(0, 6).map((f, i) => (
-            <i key={f.name} style={{ background: familyColor(f.name, i) }} />
+          {families.families.slice(0, 9).map((f, i) => (
+            <i key={f.name} style={{ background: familyColor(f.name, i), opacity: hidden.includes(f.name) ? 0.25 : 1 }} />
           ))}
         </span>
-        {highlight ?? 'Legend'}
+        {highlight ? familyLabel(highlight) : `Legend${nHidden ? ` (${nHidden} off)` : ''}`}
       </button>
       {open && (
         <div className="legend-pop">
-          {families.families.map((f, i) => (
-            <div key={f.name} className={`row${highlight === f.name ? ' active' : ''}`} onClick={() => setHighlight(highlight === f.name ? null : f.name)}>
-              <i style={{ background: familyColor(f.name, i) }} />
-              <span className="name">
-                {f.name}
-                {f.members.some((m) => m.approximate) && (
-                  <span className="tag warn" title="Members corrected from an approximate (non-literature) seed — shapes are right, parameters are not reference values" style={{ marginLeft: 6 }}>
-                    approx.
-                  </span>
-                )}
-              </span>
-              <span className="mono muted">{f.members.length}</span>
+          <div className="legend-head">
+            <span className="muted" title="drawn / in family — the scene draws a thinned, evenly strided subset per family (NRHO members always)">
+              {families.families.length} families · {families.families.reduce((a, f) => a + thinnedMembers(f).size, 0)} drawn / {families.families.reduce((a, f) => a + (f.n_total ?? f.members.length), 0)} orbits
+            </span>
+            <span>
+              <button className="toggle" onClick={() => families.families.forEach((f) => setVisible(f.name, true))}>
+                all
+              </button>
+              <button className="toggle" onClick={() => families.families.forEach((f) => setVisible(f.name, false))}>
+                none
+              </button>
+            </span>
+          </div>
+          {families.families.map((f, i) => {
+            const off = hidden.includes(f.name);
+            return (
+              <div key={f.name} className={`row${highlight === f.name ? ' active' : ''}${off ? ' off' : ''}`}>
+                <button className={`eye${off ? '' : ' on'}`} onClick={() => toggleVisible(f.name)} title={off ? 'Show family' : 'Hide family'} aria-pressed={!off}>
+                  {off ? '○' : '●'}
+                </button>
+                <i style={{ background: familyColor(f.name, i) }} />
+                <span className="name" onClick={() => setHighlight(highlight === f.name ? null : f.name)} title={(f.references ?? []).join('\n') || 'Click to highlight'}>
+                  {familyLabel(f.name)}
+                  {f.members.some((m) => m.approximate) && (
+                    <span className="tag warn" title="Members corrected from an approximate (non-literature) seed — shapes are right, parameters are not reference values" style={{ marginLeft: 6 }}>
+                      approx.
+                    </span>
+                  )}
+                </span>
+                <span
+                  className="mono muted"
+                  title={`${thinnedMembers(f).size} drawn (thinned for legibility) · ${f.members.length} loaded · ${f.n_total ?? f.members.length} in the family${f.period_days_range ? ` · period ${f.period_days_range[0].toFixed(1)}–${f.period_days_range[1].toFixed(1)} d` : ''}`}
+                >
+                  {thinnedMembers(f).size}/{f.n_total ?? f.members.length}
+                </span>
+              </div>
+            );
+          })}
+          {nrho && (
+            <div className="row info">
+              <span />
+              <i style={{ background: NRHO_COLOR }} />
+              <span className="name">9:2 NRHO (highlighted)</span>
+              <span className="mono muted">{(nrho.period_days ?? 0).toFixed(2)} d</span>
             </div>
-          ))}
+          )}
           {highlight && (
             <div className="row clear" onClick={() => setHighlight(null)}>
               <span className="name muted">clear highlight</span>
@@ -116,10 +154,10 @@ export function TopBar({ controls = true }: Props) {
         <>
           <div className="group">
             <span className="label">Frame</span>
-            <button className={`toggle${frame === 'rotating' ? ' active' : ''}`} onClick={() => setFrame('rotating')} title="Earth–Moon rotating (synodic) frame: Earth–Moon line fixed on +x">
+            <button className={`toggle${frame === 'rotating' ? ' active' : ''}`} onClick={() => setFrame('rotating')} title="Earth–Moon rotating (synodic) frame: Earth–Moon line fixed on +x, Moon pinned at (1−μ, 0, 0)">
               Rotating
             </button>
-            <button className={`toggle${frame === 'inertial' ? ' active' : ''}`} onClick={() => setFrame('inertial')} title="Inertial view: the synodic frame turns about +z by the Earth–Moon line angle (ephemeris when loaded)">
+            <button className={`toggle${frame === 'inertial' ? ' active' : ''}`} onClick={() => setFrame('inertial')} title="Inertial view: Earth-centred, axes = rotating frame at t0; the Earth–Moon line sweeps along the DE440s ephemeris">
               Inertial
             </button>
           </div>

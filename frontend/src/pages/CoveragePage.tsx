@@ -11,12 +11,14 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { api } from '../api/client';
+import type { CoveragePresets } from '../api/types';
 import { TopBar } from '../panels/TopBar';
 import { studioApi } from '../studio/api';
 import { CoverageHeatmap } from '../studio/CoverageHeatmap';
 import { estimateReasons } from '../studio/mockCoverage';
 import { sunDirAt } from '../studio/model';
-import { NETWORK_PRESETS, REASON_CODES, REASON_LABELS, type BlindReason, type CoverageFrame, type CoverageRequest, type CoverageResponse, type NetworkPreset } from '../studio/types';
+import { backendPresetLabel, NETWORK_PRESETS, REASON_CODES, REASON_LABELS, type BlindReason, type CoverageFrame, type CoverageRequest, type CoverageResponse, type NetworkPreset } from '../studio/types';
 import '../studio/studio.css';
 
 const WINDOWS: { id: string; label: string; hours: number; n_t: number }[] = [
@@ -64,7 +66,7 @@ function initialParams() {
   const mode = q.get('mode');
   const window_ = q.get('window');
   return {
-    preset: (NETWORK_PRESETS.some((p) => p.id === network) ? network : 'ground') as NetworkPreset,
+    preset: (NETWORK_PRESETS.some((p) => p.id === network) || (network && /^[a-z0-9_]+$/.test(network)) ? network : 'ground') as NetworkPreset,
     mode: (mode === 'avg' ? 'avg' : 'epoch') as 'epoch' | 'avg',
     win: WINDOWS.some((w) => w.id === window_) ? (window_ as string) : '7d',
   };
@@ -74,7 +76,31 @@ let frameStoreCounter = 0;
 
 export function CoveragePage() {
   const [init] = useState(initialParams);
-  const [preset, setPreset] = useState<NetworkPreset>(init.preset);
+  const [preset, setPreset] = useState<string>(init.preset);
+  /** Preset list from GET /api/coverage/presets when the backend is up (the studio's 5 presets otherwise). */
+  const [livePresets, setLivePresets] = useState<CoveragePresets | null>(null);
+  useEffect(() => {
+    let alive = true;
+    api
+      .coveragePresets()
+      .then((p) => {
+        if (!alive || !p || Object.keys(p).length === 0) return;
+        setLivePresets(p);
+        // Translate a studio preset id to its backend name so the active button matches the live list.
+        setPreset((cur) => (cur in p ? cur : (NETWORK_PRESETS.find((x) => x.id === cur) ? ({ ground: 'ground_only', 'ground+geo': 'ground_plus_geo', 'ground+l2': 'ground_plus_l2_halo', 'ground+dro': 'ground_plus_dro', 'ground+all': 'full' } as Record<string, string>)[cur] ?? cur : cur)));
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const presetList = useMemo<{ id: string; label: string; hint: string; live_hint: string }[]>(() => {
+    if (!livePresets) return NETWORK_PRESETS;
+    return Object.entries(livePresets).map(([id, p]) => {
+      const hint = `backend ${id}: ${p.ground_ids.length ? `${p.ground_ids.length} ground sites` : 'no ground sites'}${p.space.length ? ` + ${p.space.join(', ')}` : ''}`;
+      return { id, label: backendPresetLabel(id), hint, live_hint: hint };
+    });
+  }, [livePresets]);
   const [win, setWin] = useState(init.win);
   const [t0, setT0] = useState(DEFAULT_T0);
   const [radius, setRadius] = useState(1.0);
@@ -104,7 +130,7 @@ export function CoveragePage() {
       t1: new Date(t0ms + w.hours * 3600e3).toISOString(),
       n_t: w.n_t,
       grid: GRID,
-      network: preset,
+      network: preset as NetworkPreset,
       target_radius_m: radius,
       target_albedo: albedo,
     };
@@ -256,7 +282,7 @@ export function CoveragePage() {
 
   const epochIso = run?.res.epochs[tIdx];
   const sunDir = epochIso && mode === 'epoch' ? sunDirAt(Date.parse(epochIso)) : undefined;
-  const presetInfo = NETWORK_PRESETS.find((p) => p.id === preset)!;
+  const presetInfo = presetList.find((p) => p.id === preset) ?? presetList[0];
   const showEpochField = mode === 'epoch' && (!live || !!frame);
   const epochValues = live ? frame?.values : run?.res.values[tIdx];
   const epochReasons = live ? frame?.reasons : run?.reasons[tIdx];
@@ -274,13 +300,16 @@ export function CoveragePage() {
 
           <h3>Sensor network</h3>
           <div className="seg" role="radiogroup" aria-label="Network preset">
-            {NETWORK_PRESETS.map((p) => (
-              <button key={p.id} role="radio" aria-checked={preset === p.id} className={preset === p.id ? 'active' : ''} onClick={() => setPreset(p.id)}>
+            {presetList.map((p) => (
+              <button key={p.id} role="radio" aria-checked={preset === p.id} className={preset === p.id ? 'active' : ''} onClick={() => setPreset(p.id)} title={p.hint}>
                 {p.label}
               </button>
             ))}
           </div>
-          <p className="hint">{run && !run.mock ? presetInfo.live_hint : presetInfo.hint}</p>
+          <p className="hint">
+            {run && !run.mock ? presetInfo.live_hint : presetInfo.hint}
+            {livePresets && <span className="muted"> · list from /api/coverage/presets</span>}
+          </p>
 
           <h3>Time window</h3>
           <div className="seg" role="radiogroup" aria-label="Time window">

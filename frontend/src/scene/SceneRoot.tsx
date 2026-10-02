@@ -1,31 +1,65 @@
 /**
  * The 3D viewport. Scene unit = 1 L* (384 400 km). z is "up" (rotating-frame angular-momentum axis).
  *
- * Frame handling: everything physical is authored in the Earth–Moon ROTATING frame and placed under
- * <FrameGroup>. In 'inertial' mode the group is rotated about +z by θ(t) − θ(t0), where θ is the angle of the
- * Earth–Moon line in the GCRF xy-plane (from /api/ephemeris/bodies when loaded, else the mean lunar longitude —
- * see lib/ephem.ts). The view is therefore inertial in the sense that the Earth–Moon line sweeps around while
- * the camera stays fixed; the lunar orbit inclination is not represented (HUD says "xy-projection").
+ * Frame handling: everything physical is authored in the Earth–Moon ROTATING frame (nondimensional, Moon pinned
+ * at (1−μ, 0, 0)) and placed under <FrameGroup>. In 'inertial' mode the group is given the exact display transform
+ * from the DE440s rotating-frame basis (lib/ephem.ts `inertialDisplayMatrix`: uniform scale d(t)/L*, rotation
+ * R(t0)ᵀR(t), Earth fixed at (−μ,0,0)), so the Earth–Moon line sweeps around and the Moon rides its true
+ * ephemeris track at its true distance. Without a basis (backend down) the group is rotated about +z by
+ * θ(t) − θ(t0), the mean-element Earth–Moon line angle (planar approximation; the HUD says which one is active).
  */
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Stars } from '@react-three/drei';
 import { useRef, type ReactNode } from 'react';
-import type { Group } from 'three';
-import { emAngleAt } from '../lib/ephem';
+import * as THREE from 'three';
+import { emAngleAt, inertialDisplayMatrix } from '../lib/ephem';
 import { cursorMs, useSelene } from '../store/useSelene';
 import { Earth, LagrangePoints, Moon, SunLight } from './Bodies';
 import { CameraRig } from './CameraRig';
 import { CAMERA } from './constants';
+import { FRAME_INFO, FRAME_MATRIX, publishWorldPerPixel } from './frameBus';
+import { LabelDeclutter } from './LabelDeclutter';
 import { ReferenceGrid } from './ReferenceGrid';
+import { worldPerPixel } from './screenScale';
 
 function FrameGroup({ children }: { children: ReactNode }) {
-  const ref = useRef<Group>(null);
+  const ref = useRef<THREE.Group>(null);
   useFrame(() => {
-    const { frame, t0Iso } = useSelene.getState();
-    if (!ref.current) return;
-    ref.current.rotation.z = frame === 'inertial' ? emAngleAt(cursorMs()) - emAngleAt(Date.parse(t0Iso)) : 0;
+    const g = ref.current;
+    if (!g) return;
+    const { frame, t0Iso, t0Sec } = useSelene.getState();
+    const ms = cursorMs();
+    const t0Ms = Date.parse(t0Iso) + t0Sec * 1000;
+    if (frame === 'inertial' && inertialDisplayMatrix(ms, t0Ms, g.matrix)) {
+      g.matrixAutoUpdate = false;
+      g.matrixWorldNeedsUpdate = true;
+      FRAME_MATRIX.copy(g.matrix);
+      FRAME_INFO.mode = 'inertial-exact';
+      FRAME_INFO.scale = g.matrix.getMaxScaleOnAxis();
+      return;
+    }
+    g.matrixAutoUpdate = true;
+    g.position.set(0, 0, 0);
+    g.scale.setScalar(1);
+    g.rotation.set(0, 0, frame === 'inertial' ? emAngleAt(ms) - emAngleAt(t0Ms) : 0);
+    g.updateMatrix();
+    FRAME_MATRIX.copy(g.matrix);
+    FRAME_INFO.mode = frame === 'inertial' ? 'inertial-planar' : 'rotating';
+    FRAME_INFO.scale = 1;
   });
   return <group ref={ref}>{children}</group>;
+}
+
+/** Publishes the world size of one screen pixel at the orbit target (for the DOM scale bar). */
+function ScaleProbe() {
+  const controls = useThree((s) => s.controls) as unknown as { target: THREE.Vector3 } | null;
+  const tick = useRef(0);
+  useFrame(({ camera, size }) => {
+    if (++tick.current % 6) return;
+    const d = controls ? camera.position.distanceTo(controls.target) : camera.position.length();
+    publishWorldPerPixel(worldPerPixel(camera, d, size.height));
+  });
+  return null;
 }
 
 export interface SceneRootProps {
@@ -55,8 +89,10 @@ export function SceneRoot({ children }: SceneRootProps) {
         <LagrangePoints visible={layers.lagrange} />
         {children}
       </FrameGroup>
-      <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={0.02} maxDistance={12} target={[0.5, 0, 0]} />
+      <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={0.02} maxDistance={12} target={CAMERA.target} />
       <CameraRig />
+      <ScaleProbe />
+      <LabelDeclutter />
     </Canvas>
   );
 }

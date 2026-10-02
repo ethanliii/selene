@@ -15,7 +15,7 @@
  * recoveries when space observers near the Moon are added.
  */
 import { evaluatePoint, groundNetwork, L_STAR_KM, spaceSensor, sunDirAt, type ModelSensor } from './model';
-import { REASON_CODES, type CoverageRequest, type CoverageResponse, type NetworkPreset, type Vec3 } from './types';
+import { REASON_CODES, toStudioPreset, type CoverageRequest, type CoverageResponse, type NetworkPreset, type Vec3 } from './types';
 
 export function presetSensors(preset: NetworkPreset): ModelSensor[] {
   const s = groundNetwork();
@@ -33,7 +33,7 @@ export function mockCoverage(req: CoverageRequest): CoverageResponse {
   const t1ms = Date.parse(req.t1);
   const nT = Math.max(1, req.n_t);
   const epochs = Array.from({ length: nT }, (_, k) => new Date(t0ms + ((t1ms - t0ms) * k) / Math.max(1, nT - 1)).toISOString());
-  const sensors = presetSensors(req.network ?? 'ground');
+  const sensors = presetSensors(toStudioPreset(req.network));
   const spec = { radius_m: req.target_radius_m ?? 1.0, albedo: req.target_albedo ?? 0.2 };
   const codeOf = new Map(REASON_CODES.map((r, i) => [r, i] as const));
 
@@ -68,7 +68,7 @@ export function estimateReasons(req: CoverageRequest, res: CoverageResponse): nu
   const { x, y } = res.grid;
   const ny = y.length;
   const t0ms = Date.parse(req.t0);
-  const sensors = presetSensors(req.network ?? 'ground');
+  const sensors = presetSensors(toStudioPreset(req.network));
   const spec = { radius_m: req.target_radius_m ?? 1.0, albedo: req.target_albedo ?? 0.2 };
   const codeOf = new Map(REASON_CODES.map((r, i) => [r, i] as const));
   return res.values.map((v, k) => {

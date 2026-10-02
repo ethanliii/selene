@@ -4,7 +4,7 @@
  * (rotating group turned about +z by the Earth–Moon line angle, aligned with the rotating frame at t0).
  */
 import { create } from 'zustand';
-import type { CatalogObject, DemoScenario, EphemerisBodies, EventSeverity, OrbitFamilies, SeleneEvent, Sensors } from '../api/types';
+import type { CatalogMeta, CatalogObject, DemoScenario, EphemerisBodies, EventSeverity, OrbitFamilies, OrbitRecord, SeleneEvent, Sensors } from '../api/types';
 import { setEphemeris as installEphemeris } from '../lib/ephem';
 
 export type FrameMode = 'rotating' | 'inertial';
@@ -53,9 +53,17 @@ export interface SeleneState {
   layers: Layers;
   events: SeleneEvent[];
   catalog: CatalogObject[];
+  /** Live catalog envelope (epoch, counts, disclaimer); null in mock mode. */
+  catalogMeta: CatalogMeta | null;
+  /** Epoch the idle timeline starts at: the live catalog epoch when known, else DEFAULT_T0_ISO. */
+  baseT0Iso: string;
   sensors: Sensors | null;
+  /** Orbit-library records the space observers ride (sensor id → record), fetched live. */
+  observerOrbits: Record<string, OrbitRecord>;
   families: OrbitFamilies | null;
   highlightFamily: string | null;
+  /** Families switched off in the legend. */
+  hiddenFamilies: string[];
   ephemeris: EphemerisBodies | null;
   scenario: DemoScenario | null;
   brief: string;
@@ -76,10 +84,15 @@ export interface SeleneState {
   toggleLayer: (k: keyof Layers) => void;
   setLayer: (k: keyof Layers, v: boolean) => void;
   setEvents: (e: SeleneEvent[]) => void;
-  setCatalog: (c: CatalogObject[]) => void;
+  setCatalog: (c: CatalogObject[], meta?: CatalogMeta | null) => void;
+  /** Set the idle timeline base epoch (and move the timeline there unless a scenario is loaded). */
+  setBaseEpoch: (iso: string, spanS?: number) => void;
   setSensors: (s: Sensors | null) => void;
+  setObserverOrbits: (o: Record<string, OrbitRecord>) => void;
   setFamilies: (f: OrbitFamilies | null) => void;
   setHighlightFamily: (name: string | null) => void;
+  toggleFamilyVisible: (name: string) => void;
+  setFamilyVisible: (name: string, v: boolean) => void;
   setEphemeris: (e: EphemerisBodies | null) => void;
   setBrief: (b: string) => void;
   setDockTab: (t: DockTab) => void;
@@ -109,9 +122,13 @@ export const useSelene = create<SeleneState>((set, get) => ({
   layers: { families: true, lagrange: true, trails: true, clouds: true, fov: true, exclusion: false, grid: true, sites: true, reach: true, labels: true },
   events: [],
   catalog: [],
+  catalogMeta: null,
+  baseT0Iso: DEFAULT_T0_ISO,
   sensors: null,
+  observerOrbits: {},
   families: null,
   highlightFamily: null,
+  hiddenFamilies: [],
   ephemeris: null,
   scenario: null,
   brief: '',
@@ -143,10 +160,18 @@ export const useSelene = create<SeleneState>((set, get) => ({
   toggleLayer: (k) => set((s) => ({ layers: { ...s.layers, [k]: !s.layers[k] } })),
   setLayer: (k, v) => set((s) => ({ layers: { ...s.layers, [k]: v } })),
   setEvents: (events) => set({ events: [...events].sort((a, b) => a.t - b.t) }),
-  setCatalog: (catalog) => set({ catalog }),
+  setCatalog: (catalog, meta) => set((s) => ({ catalog, catalogMeta: meta === undefined ? s.catalogMeta : meta })),
+  setBaseEpoch: (iso, spanS = DEFAULT_SPAN_S) =>
+    set((s) => {
+      if (s.scenario) return { baseT0Iso: iso };
+      return { baseT0Iso: iso, t0Iso: iso, t0Sec: 0, t1Sec: spanS, tSec: Math.min(Math.max(s.tSec, 0), spanS) };
+    }),
   setSensors: (sensors) => set({ sensors }),
+  setObserverOrbits: (observerOrbits) => set({ observerOrbits }),
   setFamilies: (families) => set({ families }),
   setHighlightFamily: (highlightFamily) => set({ highlightFamily }),
+  toggleFamilyVisible: (name) => set((s) => ({ hiddenFamilies: s.hiddenFamilies.includes(name) ? s.hiddenFamilies.filter((n) => n !== name) : [...s.hiddenFamilies, name] })),
+  setFamilyVisible: (name, v) => set((s) => ({ hiddenFamilies: v ? s.hiddenFamilies.filter((n) => n !== name) : s.hiddenFamilies.includes(name) ? s.hiddenFamilies : [...s.hiddenFamilies, name] })),
   setEphemeris: (ephemeris) => {
     installEphemeris(ephemeris);
     set({ ephemeris });
@@ -174,8 +199,8 @@ export const useSelene = create<SeleneState>((set, get) => ({
       toasts: [],
     }),
   reset: () =>
-    set({
-      t0Iso: DEFAULT_T0_ISO,
+    set((s) => ({
+      t0Iso: s.baseT0Iso,
       t0Sec: 0,
       t1Sec: DEFAULT_SPAN_S,
       tSec: 0,
@@ -189,7 +214,7 @@ export const useSelene = create<SeleneState>((set, get) => ({
       toasts: [],
       scenarioFinished: false,
       highlightFamily: null,
-    }),
+    })),
 }));
 
 /** Current UTC Date for the time cursor. */

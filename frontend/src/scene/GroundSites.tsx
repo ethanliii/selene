@@ -8,9 +8,10 @@ import { useFrame } from '@react-three/fiber';
 import { useMemo, useRef, useState } from 'react';
 import { Quaternion, Vector3, type Group } from 'three';
 import type { Vec3 } from '../api/types';
+import { moonDistanceKm } from '../lib/ephem';
 import { cursorMs, useSelene } from '../store/useSelene';
 import { earthQuaternion } from './earthOrientation';
-import { COLORS, EARTH_RADIUS, EARTH_ROT } from './constants';
+import { COLORS, EARTH_RADIUS, EARTH_ROT, L_STAR_KM } from './constants';
 import { Label } from './Label';
 
 const tmpV = new Vector3();
@@ -37,14 +38,18 @@ export function GroundSites({ visible = true, activeIds }: Props) {
       (sensors?.ground ?? []).map((g) => {
         const u = siteUnitVector(g.lat_deg, g.lon_deg);
         const r = EARTH_RADIUS * 1.01;
-        return { id: g.id, name: g.name, pos: [u[0] * r, u[1] * r, u[2] * r] as Vec3 };
+        return { id: g.id, name: g.name, short: g.id.replace(/^GND-/, '').replace(/_/g, ' ').toUpperCase(), pos: [u[0] * r, u[1] * r, u[2] * r] as Vec3 };
       }),
     [sensors],
   );
   // Site labels only when the camera is close enough to the Earth to read them (state flips rarely).
   const [near, setNear] = useState(false);
   useFrame(({ camera }) => {
-    if (ref.current) ref.current.quaternion.copy(earthQuaternion(tmpQ, cursorMs(), true));
+    if (ref.current) {
+      const ms = cursorMs();
+      ref.current.quaternion.copy(earthQuaternion(tmpQ, ms, true));
+      ref.current.scale.setScalar(L_STAR_KM / moonDistanceKm(ms));
+    }
     const d = camera.position.distanceTo(ref.current ? ref.current.getWorldPosition(tmpV) : tmpV.set(EARTH_ROT[0], 0, 0));
     const n = d < 0.45;
     if (n !== near) setNear(n);
@@ -60,7 +65,7 @@ export function GroundSites({ visible = true, activeIds }: Props) {
               <sphereGeometry args={[EARTH_RADIUS * (active ? 0.09 : 0.06), 8, 6]} />
               <meshBasicMaterial color={active ? COLORS.ok : COLORS.sim} />
             </mesh>
-            {showLabels && (near || active) && <Label position={[0, 0, 0]} text={s.id.replace(/^GND-/, '')} color={active ? COLORS.ok : COLORS.muted} />}
+            {showLabels && (near || active) && <Label position={[0, 0, 0]} text={s.short} color={active ? COLORS.ok : COLORS.muted} id={`site-${s.id}`} priority={active ? 75 : 30} />}
           </group>
         );
       })}

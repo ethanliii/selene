@@ -1,15 +1,14 @@
 /**
  * Flies the camera to a preset (smooth ease over ~0.9 s) when a CameraPresets button is pressed.
- * Presets are authored in rotating-frame coordinates; in the inertial view they are rotated by the current
- * frame angle so "Moon close-up" still looks at the Moon.
+ * Presets are authored in rotating-frame coordinates; they are mapped through the synodic group's current display
+ * matrix (scene/frameBus.ts) so "Moon close-up" still looks at the Moon in the inertial view.
  */
 import { useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { emAngleAt } from '../lib/ephem';
-import { cursorMs, useSelene } from '../store/useSelene';
 import { onCameraPreset } from './cameraBus';
 import { CAMERA_PRESETS } from './constants';
+import { FRAME_MATRIX } from './frameBus';
 
 interface Flight {
   p0: THREE.Vector3;
@@ -18,13 +17,6 @@ interface Flight {
   t1: THREE.Vector3;
   start: number;
   dur: number;
-}
-
-/** Current inertial-view rotation angle about +z (0 in the rotating frame). */
-export function frameAngleNow(): number {
-  const { frame, t0Iso } = useSelene.getState();
-  if (frame !== 'inertial') return 0;
-  return emAngleAt(cursorMs()) - emAngleAt(Date.parse(t0Iso));
 }
 
 export function CameraRig() {
@@ -36,13 +28,18 @@ export function CameraRig() {
     () =>
       onCameraPreset((name) => {
         const p = CAMERA_PRESETS[name];
-        const a = frameAngleNow();
-        const rot = (v: [number, number, number]) => new THREE.Vector3(v[0], v[1], v[2]).applyAxisAngle(new THREE.Vector3(0, 0, 1), a);
+        // Rotation/translation of the display frame, without its uniform scale for the camera offset (the offset is
+        // a viewing distance, the target is a scene point).
+        const target = new THREE.Vector3(...p.target).applyMatrix4(FRAME_MATRIX);
+        const offset = new THREE.Vector3(p.position[0] - p.target[0], p.position[1] - p.target[1], p.position[2] - p.target[2]);
+        const rot = new THREE.Quaternion();
+        FRAME_MATRIX.decompose(new THREE.Vector3(), rot, new THREE.Vector3());
+        offset.applyQuaternion(rot);
         flight.current = {
           p0: camera.position.clone(),
-          p1: rot(p.position),
+          p1: target.clone().add(offset),
           t0: controls ? controls.target.clone() : new THREE.Vector3(),
-          t1: rot(p.target),
+          t1: target,
           start: performance.now(),
           dur: 900,
         };

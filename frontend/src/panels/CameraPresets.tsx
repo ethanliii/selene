@@ -6,7 +6,7 @@ const ORDER: PresetName[] = ['overview', 'earth', 'moon', 'l1', 'l2'];
 
 export function CameraPresets() {
   return (
-    <div className="cam-presets">
+    <div className="cam-presets" data-label-obstacle>
       <span className="label">View</span>
       {ORDER.map((k) => (
         <button key={k} className="toggle" onClick={() => requestCameraPreset(k)} title={`Fly camera to ${CAMERA_PRESETS[k].label}`}>

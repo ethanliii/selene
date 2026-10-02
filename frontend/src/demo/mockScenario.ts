@@ -24,7 +24,7 @@
  */
 import type { DemoFrame, DemoScenario, FrameCloud, FrameSensor, ReachabilityRegion, SeleneEvent, State6, Vec3 } from '../api/types';
 import { L_STAR_KM, lagrangePoints, mockFamilies, orbitPointAtPhase, propagateDP45, sampleTrajectory, tabulate, V_STAR_KMS, type FamilyMember } from '../lib/cr3bp';
-import { rotToGcrfState, secToNd } from '../lib/ephem';
+import { ephemerisKey, hasBasisAt, rotToGcrfState, secToNd } from '../lib/ephem';
 import { groundVisibility, siteRotKm, spaceVisibility, type GroundVisibility } from '../lib/groundVis';
 import { MOCK_GROUND, MOCK_SPACE, MOCK_SPACE_OBSERVERS, type MockSpaceObserverDef } from './mockNetwork';
 
@@ -36,6 +36,8 @@ export const RELAY = 'SIM-NRHO-01';
 
 const H = 3600;
 const DURATION = 48 * H;
+/** Scenario span [s] (exported so the demo driver can install the ephemeris for exactly this window first). */
+export const SCENARIO_DURATION_S = DURATION;
 const FRAME_DT = 600;
 /** Ground network: one observation per slot, taken by the visible site with the highest elevation. */
 const GROUND_SLOT_S = 2 * H;
@@ -273,10 +275,12 @@ function firstBlindGap(table: GroundVisibility[][], times: number[]): { start: n
 }
 
 // ---- main generator ---------------------------------------------------------------------------------
-let cached: DemoScenario | null = null;
+/** Memoised per ephemeris state (ground visibility depends on which Earth-orientation / Sun model is installed). */
+let cached: { key: string; scenario: DemoScenario } | null = null;
 
 export function buildMockScenario(): DemoScenario {
-  if (cached) return cached;
+  const key = ephemerisKey();
+  if (cached && cached.key === key) return cached.scenario;
   const r = rng(20261001);
   const t0ms = Date.parse(SCENARIO_T0);
   const nFrames = Math.floor(DURATION / FRAME_DT) + 1;
@@ -558,10 +562,10 @@ export function buildMockScenario(): DemoScenario {
     `- Pre-position ground observations for the next window outside the lunar-glare zone (none before ${hh(DURATION)} on the current orbit).`,
     `- Share the post-burn ephemeris and covariance with the ${RELAY} operator for conjunction screening.`,
     `## Model notes`,
-    `Browser mock: CR3BP dynamics (μ = 0.012150585), mean-element Moon/Sun/GMST with the J2000 obliquity (lunar inclination neglected), Lambertian-sphere photometry (m☉ = −26.74). The lunar-glare zone (3° new Moon → 15° full Moon) is a modelling assumption shared with the backend. Filter behaviour is emulated: isotropic σ_v = ${SIG_DV_MPS} m/s after detection; re-anchor σ = ${REANCHOR.map((x) => `${x.pos_km} km / ${x.vel_mps} m/s`).join(', ')} after successive observations. Nominal residuals and the Δv-estimate error are seeded random draws.`,
+    `Browser mock: CR3BP dynamics (μ = 0.012150585), ${hasBasisAt(t0ms) ? 'Earth orientation and Sun direction from the backend DE440s rotating-frame basis (GMST spin)' : 'mean-element Moon/Sun/GMST with the J2000 obliquity (lunar inclination neglected)'}, Lambertian-sphere photometry (m☉ = −26.74). The lunar-glare zone (3° new Moon → 15° full Moon) is a modelling assumption shared with the backend. Filter behaviour is emulated: isotropic σ_v = ${SIG_DV_MPS} m/s after detection; re-anchor σ = ${REANCHOR.map((x) => `${x.pos_km} km / ${x.vel_mps} m/s`).join(', ')} after successive observations. Nominal residuals and the Δv-estimate error are seeded random draws.`,
   ].join('\n\n');
 
-  cached = {
+  const scenario: DemoScenario = {
     meta: {
       title: 'Unannounced DRO departure (mock, browser CR3BP)',
       t0_utc: SCENARIO_T0,
@@ -576,7 +580,8 @@ export function buildMockScenario(): DemoScenario {
     events: events.sort((a, b) => a.t - b.t),
     brief,
   };
-  return cached;
+  cached = { key, scenario };
+  return scenario;
 }
 
 /** GCRF state (km, km/s) of a mock object at the scenario epoch, for the catalog. */

@@ -74,6 +74,24 @@ export const BACKEND_PRESET: Record<NetworkPreset, string> = {
   'ground+dro': 'ground_plus_dro',
   'ground+all': 'full',
 };
+/** Backend preset name → the closest studio (mock) preset, for the offline fallback. */
+export function toStudioPreset(network: string | undefined): NetworkPreset {
+  if (!network) return 'ground';
+  if ((Object.keys(BACKEND_PRESET) as NetworkPreset[]).includes(network as NetworkPreset)) return network as NetworkPreset;
+  const inv = (Object.entries(BACKEND_PRESET) as [NetworkPreset, string][]).find(([, b]) => b === network);
+  if (inv) return inv[0];
+  if (/geo/.test(network)) return 'ground+geo';
+  if (/l2|l1|nrho/.test(network)) return 'ground+l2';
+  if (/dro/.test(network)) return 'ground+dro';
+  if (/full|space/.test(network)) return 'ground+all';
+  return 'ground';
+}
+/** Human label for a backend preset id ("ground_plus_l2_halo" → "+ L2 halo"). */
+export function backendPresetLabel(id: string): string {
+  const known: Record<string, string> = { ground_only: 'Ground only', full: 'Full network', space_only: 'Space only', ground_plus_geo: '+ GEO ×2', ground_plus_l1_halo: '+ L1 halo', ground_plus_l2_halo: '+ L2 halo', ground_plus_dro: '+ DRO', ground_plus_nrho: '+ NRHO' };
+  if (known[id]) return known[id];
+  return id.replace(/^ground_plus_/, '+ ').replace(/_/g, ' ');
+}
 
 export type NetworkPreset = 'ground' | 'ground+geo' | 'ground+l2' | 'ground+dro' | 'ground+all';
 
@@ -109,8 +127,8 @@ export interface CoverageRequest {
   n_t: number;
   grid: CoverageGridSpec;
   sensor_ids?: string[];
-  /** Preset hint for the backend; the mock uses it to pick observers. */
-  network?: NetworkPreset;
+  /** Studio preset id, or a backend preset name straight from GET /api/coverage/presets (live list). */
+  network?: NetworkPreset | string;
   /** Reference target radius (m) and geometric albedo for detectability. */
   target_radius_m?: number;
   target_albedo?: number;

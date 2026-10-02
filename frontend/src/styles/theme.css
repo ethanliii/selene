@@ -5,7 +5,7 @@
   --panel-2: #111823;
   --border: #1c2733;
   --text: #d6e2f0;
-  --muted: #7c8da3;
+  --muted: #8d9db3;
   --accent: #4cc9f0;
   --accent-2: #9b5de5;
   --ok: #2dd4bf;
@@ -107,7 +107,7 @@ a {
 /* ---- App frame --------------------------------------------------------- */
 .app {
   display: grid;
-  grid-template-rows: var(--banner-h) 1fr;
+  grid-template-rows: auto 1fr;
   height: 100%;
 }
 
@@ -116,6 +116,9 @@ a {
   align-items: center;
   justify-content: center;
   gap: 16px;
+  min-height: var(--banner-h);
+  padding: 2px 12px;
+  line-height: 1.35;
   background: #1a1208;
   color: var(--sim);
   font-family: var(--font-mono);
@@ -174,6 +177,31 @@ a {
   height: var(--nav-h);
   background: var(--panel);
   border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  /* visible, not hidden: the family-legend popup (.legend-pop) is absolutely positioned below the bar and
+     would be clipped by overflow: hidden; nowrap + min-width: 0 is what keeps the bar on one line. */
+  overflow: visible;
+  min-width: 0;
+  position: relative;
+  z-index: 30;
+}
+.topbar button,
+.topbar .tag,
+.topbar nav a {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+@media (max-width: 1600px) {
+  .wordmark .sub {
+    display: none;
+  }
+  .topbar {
+    gap: 8px;
+  }
+  .topbar .group {
+    gap: 3px;
+    padding-left: 8px;
+  }
 }
 .wordmark {
   display: flex;
@@ -289,8 +317,8 @@ a {
   padding: 1px 6px;
   border-radius: 3px;
   font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
+  font-size: 11px;
+  letter-spacing: 0.06em;
   font-weight: 600;
   border: 1px solid currentColor;
   vertical-align: middle;
@@ -338,8 +366,10 @@ a {
 .events li .meta {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .events li .meta .kind {
@@ -482,6 +512,9 @@ a {
   font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
+  padding: 4px 8px;
+  background: rgba(5, 7, 11, 0.6);
+  border-radius: var(--radius);
 }
 .hud b {
   color: var(--text);
@@ -520,9 +553,26 @@ a {
   pointer-events: none;
   user-select: none;
   transform: translate(6px, -6px);
+  text-shadow: 0 0 3px rgba(5, 7, 11, 0.95), 0 0 6px rgba(5, 7, 11, 0.9);
 }
 .scene-label.accent {
   color: var(--accent);
+}
+.scene-label.body {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text);
+  transform: translate(-50%, 10px);
+}
+.scene-label.lpoint {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0 4px;
+  background: rgba(5, 7, 11, 0.7);
+  border-radius: 2px;
+  transform: translate(8px, -8px);
 }
 
 /* ---- Placeholder pages -------------------------------------------------- */
@@ -578,7 +628,7 @@ a {
   transform: translate(10px, -10px);
   padding: 1px 5px 1px 4px;
   border-left: 2px solid var(--muted);
-  background: rgba(5, 7, 11, 0.55);
+  background: rgba(5, 7, 11, 0.78);
   font-family: var(--font-mono);
   font-size: 11px;
   white-space: nowrap;
@@ -591,8 +641,15 @@ a {
   font-weight: 600;
 }
 .obj-label .tag {
-  font-size: 10px;
+  font-size: 11px;
   padding: 0 4px;
+  letter-spacing: 0.04em;
+}
+.obj-label.real {
+  border-left-color: var(--accent);
+}
+.obj-label .id {
+  color: var(--text);
 }
 .obj-label .tag.sim {
   font-weight: 600;
@@ -636,7 +693,7 @@ a {
   gap: 8px;
   align-items: center;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .toast .meta .kind {
@@ -723,7 +780,7 @@ a {
 }
 .cam-presets .label {
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   margin-right: 4px;
@@ -773,7 +830,7 @@ a {
   margin: 8px 0 2px;
 }
 .spark-cap {
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 2px;
 }
 
@@ -812,7 +869,7 @@ a {
   margin-top: 14px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--accent);
   line-height: 1.5;
 }
@@ -859,7 +916,7 @@ a {
   display: flex;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
   margin-bottom: 2px;
 }
@@ -874,4 +931,166 @@ a {
   color: var(--warn);
   border-color: var(--warn);
   background: rgba(245, 183, 0, 0.08);
+}
+
+
+/* ---- Live wiring pass: banner strip, HUD frame pill, scale bar, legend toggles, catalog groups ---- */
+.banner {
+  flex-wrap: wrap;
+  row-gap: 0;
+}
+.live-strip {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.live-strip b {
+  font-weight: 600;
+}
+.live-strip .live b {
+  color: var(--ok);
+}
+.live-strip .mock b {
+  color: var(--warn);
+}
+.live-strip .avail b {
+  color: var(--accent);
+}
+.live-strip.offline {
+  color: var(--alert);
+  font-weight: 600;
+}
+.hud {
+  font-size: 12px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.hud-frame {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.frame-pill {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--ok);
+  color: var(--ok);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+}
+.frame-pill.inertial {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+.scalebar {
+  position: absolute;
+  right: 12px;
+  bottom: 44px;
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text);
+  text-align: right;
+}
+.scalebar .bar {
+  height: 6px;
+  margin-left: auto;
+  border: 1px solid var(--text);
+  border-top: 0;
+  opacity: 0.85;
+}
+.scalebar .txt {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 3px;
+}
+.legend-pop {
+  min-width: 300px;
+}
+.legend-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+.legend-head .toggle {
+  margin-left: 4px;
+}
+.legend-pop .row {
+  grid-template-columns: 18px 12px 1fr auto;
+}
+.legend-pop .row.off .name,
+.legend-pop .row.off i {
+  opacity: 0.4;
+}
+.legend-pop .row.info {
+  cursor: default;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+.legend-pop .eye {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  width: 18px;
+  height: 18px;
+  line-height: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.legend-pop .eye.on {
+  color: var(--accent);
+}
+.legend-pop .row .name {
+  cursor: pointer;
+}
+.catalog-group {
+  margin-top: 10px;
+}
+.catalog-head {
+  margin: 0 0 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.catalog-head.simulated {
+  color: var(--sim);
+}
+.catalog-head.horizons {
+  color: var(--accent);
+}
+.obj-src {
+  margin: 6px 0 0;
+  word-break: break-word;
+}
+.obj-desc {
+  margin: 6px 0 0;
+  color: var(--text);
+  line-height: 1.45;
+}
+.field .v .tag {
+  margin-right: 4px;
+}
+.events li .meta .tag {
+  font-size: 11px;
+  padding: 0 4px;
+}
+
+.hud-mock {
+  margin-top: 2px;
+  color: var(--warn);
+}
+.hud-mock b {
+  color: var(--warn);
+}
+.hud-mock.offline {
+  color: var(--alert);
+  font-weight: 600;
 }

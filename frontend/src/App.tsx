@@ -1,18 +1,17 @@
-/** App shell: persistent classification/demo banner + router. */
+/** App shell: persistent classification/demo banner (with the LIVE/MOCK endpoint summary) + router. */
 import { useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { api, useBackendStatus } from './api/client';
+import { api } from './api/client';
 import { ArchitecturePage } from './pages/ArchitecturePage';
 import { CoveragePage } from './pages/CoveragePage';
 import { OpsPage } from './pages/OpsPage';
+import { LiveStatus } from './panels/LiveStatus';
 
 function Banner() {
-  const backend = useBackendStatus();
   return (
     <div className="banner" role="note">
       <span>UNCLASSIFIED // DEMONSTRATION — ALL OBJECTS AND EVENTS MARKED SIMULATED ARE NOTIONAL</span>
-      {backend === 'offline' && <span className="offline">BACKEND OFFLINE — MOCK DATA</span>}
-      {backend === 'partial' && <span className="offline">API PARTIAL — MOCK FALLBACK FOR UNIMPLEMENTED ENDPOINTS</span>}
+      <LiveStatus />
     </div>
   );
 }

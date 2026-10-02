@@ -127,7 +127,7 @@ function toLive(req: CoverageRequest): LiveCoverageRequest {
     t0: req.t0,
     t1: req.t1,
     n_t: req.n_t,
-    network: BACKEND_PRESET[req.network ?? 'ground'],
+    network: BACKEND_PRESET[(req.network ?? 'ground') as keyof typeof BACKEND_PRESET] ?? req.network ?? 'ground_only',
     grid: '2d',
     radius_m: req.target_radius_m ?? 1.0,
     albedo: req.target_albedo ?? 0.2,

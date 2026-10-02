@@ -20,27 +20,107 @@ export interface Health {
   status: string;
   version: string;
   offline: boolean;
+  /** Ephemeris kernel in use, e.g. "de440s.bsp" (live backend). */
+  ephemeris?: string;
 }
 
 // ---------------------------------------------------------------------------
 // GET /api/catalog/objects
 export type ObjectKind = 'simulated' | 'horizons';
 
+/** Notional physical/photometric design values carried by SIMULATED objects (backend `physical`). */
+export interface PhysicalAssumptions {
+  radius_m: number;
+  albedo: number;
+  area_m2?: number;
+  mass_kg?: number;
+  cr?: number;
+  cr_area_mass_m2_kg?: number;
+  note?: string;
+}
+
+/** Summary of the periodic-orbit library record an object rides (backend `orbit_record`). */
+export interface OrbitRecordSummary {
+  id: string;
+  family: string;
+  branch?: string;
+  period_days: number;
+  jacobi: number;
+  stability_index: number;
+  tags?: string[];
+  params?: Record<string, number>;
+}
+
 export interface CatalogObject {
   id: string;
   name: string;
   kind: ObjectKind;
-  /** e.g. "L2 southern halo", "9:2 NRHO", "DRO", "ELFO", "resonant 3:1" */
+  /** e.g. "L2 southern halo", "9:2 NRHO", "DRO", "ELFO", "3:1 resonant" */
   orbit_type: string;
-  /** Always "notional" for simulated objects; never a real country/operator. */
+  /** "notional actor" / "notional allied operator" for simulated objects; never a real country/operator. */
   actor: string;
   state_gcrf_km: State6;
+  /** ISO UTC (the client normalises the backend's zone-less strings to a trailing 'Z'). */
   epoch_utc: string;
-  /** Optional: rotating-frame nondimensional state at `epoch_utc` (mock objects carry it; backend may omit). */
+  /** Rotating-frame nondimensional state at `epoch_utc` (`state_rot_nd` from the backend, `ic_rot` in the mock). */
   ic_rot?: State6;
+  state_rot_nd?: State6;
   /** Optional photometric parameters: characteristic radius [m] and Bond albedo. */
-  radius_m?: number;
-  albedo?: number;
+  radius_m?: number | null;
+  albedo?: number | null;
+  // ---- live backend extras (all optional) ----
+  is_real?: boolean;
+  /** "SIMULATED" | "REAL (JPL Horizons)" */
+  label?: string;
+  orbit_ref?: string | null;
+  role?: string;
+  description?: string;
+  /** Provenance, e.g. "JPL Horizons id -1176 (CAPSTONE_merged), fetched …" or "SIMULATED: CR3BP library record …". */
+  source?: string;
+  physical?: PhysicalAssumptions | null;
+  period_s?: number | null;
+  phase?: number | null;
+  tags?: string[];
+  notes?: string[];
+  orbit_record?: OrbitRecordSummary | null;
+  horizons_id?: number | null;
+  /** Horizons regime tag: 'nrho' | 'lunar_orbit' | 'xgeo_heo' | … */
+  regime?: string | null;
+  /** Horizons cached span [start, end] (ISO UTC, normalised). */
+  span_utc?: [string, string] | null;
+  geocentric_range_km?: number;
+  selenocentric_range_km?: number;
+  epoch_tdb_s?: number;
+}
+
+/** Live `GET /api/catalog/objects` envelope (the mock returns a bare array; the client unwraps both). */
+export interface CatalogMeta {
+  epoch_utc: string;
+  n_simulated: number;
+  n_real: number;
+  disclaimer: string;
+}
+export interface CatalogResponse extends CatalogMeta {
+  objects: CatalogObject[];
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/catalog/objects/{id}/trajectory?t0&t1&n&frame
+export type TrajectoryFrame = 'gcrf_km' | 'rot_nd' | 'moon_km';
+
+export interface TrajectoryResponse {
+  object_id: string;
+  kind: ObjectKind;
+  frame: TrajectoryFrame;
+  units: string;
+  t0_utc: string;
+  t1_utc: string;
+  n: number;
+  epochs_utc: string[];
+  tdb_s: number[];
+  /** 6-states per epoch: km & km/s (gcrf_km, moon_km) or nondimensional (rot_nd; length = instantaneous Earth–Moon distance, time T*). */
+  states: State6[];
+  meta?: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +131,7 @@ export interface OrbitMember {
   ic: State6;
   /** Period, nondimensional time units (multiply by T* ≈ 3.7519e5 s for seconds). */
   period: number;
+  period_days?: number;
   jacobi: number;
   /** Stability index ν = ½(λ_max + 1/λ_max); |ν| ≤ 1 is linearly stable. */
   stability: number;
@@ -58,29 +139,80 @@ export interface OrbitMember {
   samples_rot: Vec3[];
   /** True when the member was corrected from an approximate (non-literature) seed; shown as "approx." in the UI. */
   approximate?: boolean;
+  closure_error?: number;
+  /** e.g. ["NRHO", "NRHO_9:2", "synodic_resonant"] */
+  tags?: string[];
+  params?: Record<string, number>;
 }
 
 export interface OrbitFamily {
+  /** Unique name, e.g. "L2_halo_S", "DRO", "resonant_3:1" (live) or "L2 southern halo / NRHO" (mock). */
   name: string;
   members: OrbitMember[];
+  family?: string;
+  branch?: string;
+  n_total?: number;
+  n_returned?: number;
+  period_days_range?: [number, number];
+  jacobi_range?: [number, number];
+  references?: string[];
 }
 
 export interface OrbitFamilies {
   families: OrbitFamily[];
+  mu?: number;
+  L_star_km?: number;
+  T_star_s?: number;
+  n_samples?: number;
+  note?: string;
+}
+
+// GET /api/orbits/records/{id}
+export interface OrbitRecord {
+  id: string;
+  family: string;
+  branch?: string;
+  ic: State6;
+  period_nd: number;
+  period_days: number;
+  jacobi: number;
+  stability_index: number;
+  eigenvalues?: number[];
+  closure_error?: number;
+  params?: Record<string, number>;
+  tags?: string[];
+  method?: string;
+  index?: number;
+  /** One period, uniformly sampled in time from `ic`, rotating frame nondimensional. */
+  samples_rot: Vec3[];
+  samples_gcrf_km?: Vec3[] | null;
 }
 
 // ---------------------------------------------------------------------------
 // GET /api/ephemeris/bodies?t0&t1&n
+/**
+ * Per-epoch Earth–Moon rotating-frame basis (live backend only).
+ * `R[k]` is row-major 3×3 with columns x̂, ŷ, ẑ of the rotating frame expressed in GCRF, so
+ *   r_gcrf = r_bary + d · R · r_rot_nd      and      r_rot_nd = Rᵀ (r_gcrf − r_bary) / d.
+ */
+export interface RotatingBasis {
+  R: number[][];
+  d_km: number[];
+  r_bary_km: Vec3[];
+  omega_rad_s: number[];
+}
+
 export interface EphemerisBodies {
-  /** Provenance tag; the browser mock sets 'mock-mean-elements', the backend may set e.g. 'de440s'. */
+  /** Provenance tag; the browser mock sets 'mock-mean-elements', the backend 'de440s'. */
   source?: string;
-  /** ISO UTC epochs, length n. */
+  /** ISO UTC epochs, length n (normalised to a trailing 'Z' by the client). */
   epochs: string[];
+  tdb_s?: number[];
   /** GCRF positions, km, one Vec3 per epoch. Earth is the origin (all zeros) in GCRF. */
   earth: Vec3[];
   moon: Vec3[];
   sun: Vec3[];
-  /** Instantaneous rotating-frame quantities, nondimensional, one per epoch. */
+  /** Moon and the CR3BP libration points of the instantaneous rotating frame, GCRF km (display aid). */
   rot_frame: {
     moon: Vec3[];
     l1: Vec3[];
@@ -89,6 +221,12 @@ export interface EphemerisBodies {
     l4: Vec3[];
     l5: Vec3[];
   };
+  basis?: RotatingBasis;
+  lagrange_rot_nd?: Record<'l1' | 'l2' | 'l3' | 'l4' | 'l5', Vec3>;
+  mu?: number;
+  L_star_km?: number;
+  T_star_s?: number;
+  note?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,8 +248,22 @@ export interface GroundSensor {
   /** Sun elevation must be below this for the site to operate (deg, e.g. −12). */
   sun_elev_max_deg?: number;
   aperture_m?: number;
+  slew_rate_deg_s?: number;
+  kind?: 'ground';
   notes?: string;
   spec_note?: string;
+}
+
+/** Live backend `orbit` summary for a space observer (the client moves it to `orbit_info`). */
+export interface SpaceObserverOrbitInfo {
+  /** 'geostationary_itrs' | 'library:<record id>' | 'custom' */
+  source: string;
+  period_days: number;
+  ic_rot_nd?: State6;
+  closure_residual?: number;
+  length_unit_km?: number;
+  radius_km?: number;
+  longitude_deg?: number;
 }
 
 export type SpaceObserverOrbit = 'GEO' | 'L1_halo' | 'L2_halo' | 'DRO' | 'resonant' | string;
@@ -122,6 +274,13 @@ export interface SpaceSensor {
   /** Candidate orbit class (client adapter copies `platform_orbit` here when the backend uses that name). */
   orbit: SpaceObserverOrbit;
   platform_orbit?: string;
+  /** Live backend orbit summary (host orbit record / GEO parameters). */
+  orbit_info?: SpaceObserverOrbitInfo;
+  /** Library record id the observer rides (parsed from orbit_info.source = "library:<id>"). */
+  orbit_record_id?: string;
+  /** Epoch of `phase` (TDB seconds past J2000) and its UTC ms equivalent (client-derived). */
+  epoch_s?: number;
+  epoch_ms?: number;
   /** Optional: id of the orbit-library member the observer rides (`orbit_ref` is the backend alias). */
   orbit_member_id?: string;
   orbit_ref?: string | null;
@@ -137,12 +296,37 @@ export interface SpaceSensor {
   earth_exclusion_deg: number;
   /** Max slew rate, deg/s. */
   slew_rate_dps?: number;
+  slew_rate_deg_s?: number;
+  kind?: 'space';
+  spec_note?: string;
 }
 
 export interface Sensors {
   ground: GroundSensor[];
   space: SpaceSensor[];
+  note?: string;
+  reason_bits?: Record<string, number>;
 }
+
+// GET /api/sensors/{id}/visibility?object_id&t0&t1&n
+export interface VisibilityResponse {
+  sensor_id: string;
+  object_id: string;
+  t0: string;
+  t1: string;
+  n: number;
+  fraction_visible: number;
+  t_s: number[];
+  visible: boolean[];
+  magnitude: (number | null)[];
+  reasons: number[];
+  reason_names: string[][];
+  range_km: number[];
+  phase_deg: number[];
+}
+
+// GET /api/coverage/presets
+export type CoveragePresets = Record<string, { ground_ids: string[]; space: string[] }>;
 
 // ---------------------------------------------------------------------------
 // POST /api/coverage
@@ -393,7 +577,8 @@ export interface FrameObject {
   pos_rot: Vec3;
   /** GCRF position, km (optional; backend may provide both). */
   pos_gcrf_km?: Vec3;
-  custody: 'held' | 'degraded' | 'lost';
+  /** 'unknown' = no OD/tasking has evaluated this object (idle catalog view): not a measured status. */
+  custody: 'held' | 'degraded' | 'lost' | 'unknown';
   /** sqrt(trace of position covariance), km. */
   sigma_pos_km?: number;
 }

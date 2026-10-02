@@ -13,6 +13,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8000',
         changeOrigin: true,
       },
+      // FastAPI's OpenAPI document: the client reads it once to learn which optional routes exist.
+      '/openapi.json': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
   build: {

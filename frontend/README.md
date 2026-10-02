@@ -25,17 +25,59 @@ dock tab and `&select=<object id>` selects an object.
 
 `src/api/client.ts` catches network failures / gateway errors, flips a backend-status store to `offline`, and returns
 data from `src/api/mock.ts`. HTTP 4xx/5xx with a real response are thrown as `ApiError` (not mocked) so backend bugs
-stay visible. The switch is per call, so the UI moves to live data transparently as endpoints come up.
+stay visible. The switch is per call: every call records whether it was served `live` or `mock` under a short endpoint
+name, and the banner prints the result verbatim, e.g.
+`LIVE: catalog, trajectory, orbits, ephemeris, sensors · AVAILABLE (not wired): coverage · MOCK: OD, maneuver, reachability, tasking, architecture, demo`.
+`LIVE` means the screen actually fetched that data in this session; `AVAILABLE (not wired)` means the route exists on
+the backend (OpenAPI probe) but nothing on the current screen calls it yet (so a newly registered `/api/od/run` does not
+masquerade as live OD until the UI consumes it); `MOCK` is the browser fallback. Routes other tracks have not written
+yet are detected once per session from the backend's OpenAPI document (`/openapi.json`, proxied in dev; one 200
+request, no 404 noise), with an invalid-POST probe (422 vs 404) as fallback.
+
+**Custody in the idle (non-scenario) view is `unknown`, shown as `NO OD` / `CUSTODY N/A · NO OD`** — no OD or tasking
+has evaluated the catalog objects, so no green "held" status is invented; measured custody states appear only inside a
+scenario (cloud σ thresholds) or once the OD/tasking routes are wired in.
+
+**Ephemeris range guard.** `src/lib/ephem.ts` serves exact DE440s geometry (rotating basis, Sun direction, Earth
+orientation) only for epochs inside the loaded span (± one sample interval); outside it, every accessor falls back to
+the mean-element model instead of clamping or extrapolating, and the HUD says "cursor outside the loaded ephemeris
+span". `startDemo()` installs the ephemeris for the scenario span (2026-10-01 + 48 h) before the browser mock scenario
+is generated, so its ground-visibility model uses the exact basis; the mock scenario cache is keyed by that state.
 
 | Data | Live (backend up) | Mock (backend down) |
 |---|---|---|
-| Orbit families | `GET /api/orbits/families` | `src/lib/cr3bp.ts`: browser CR3BP corrector — L1/L2 Lyapunov, L2 southern halo→NRHO, DRO (25 members, closure < 1e-7) |
-| Catalog | `GET /api/catalog/objects` | 5 notional objects riding those families (`demo/mockScenario.ts`), with `ic_rot` + derived GCRF state |
-| Object motion (no scenario) | catalog state → browser CR3BP display propagation | same |
-| Ephemeris angles | `GET /api/ephemeris/bodies` (DE440s) → Earth–Moon line, Sun direction | mean-element formulas (Meeus) in `src/lib/ephem.ts` |
-| Sensors | `GET /api/sensors` | `demo/mockNetwork.ts`: 4 notional ground sites (public observatory coordinates, assumed specs) + DRO / L1 / GEO observers |
-| Demo scenario | `GET /api/demo/scenario` | `demo/mockScenario.ts`: 48 h story generated from CR3BP dynamics + computed ground observability (≈0.4 s) |
-| Coverage / OD / tasking / architecture | live | layout placeholders (zeros), never physics |
+| Catalog | `GET /api/catalog/objects` (envelope: epoch, counts, disclaimer; 11 SIMULATED + 7 REAL · JPL HORIZONS objects). The catalog epoch becomes the idle timeline start (7-day span). | 5 notional objects riding the browser CR3BP families (`demo/mockScenario.ts`) |
+| Object motion (no scenario) | `GET /api/catalog/objects/{id}/trajectory?frame=rot_nd` over the visible span (`demo/useLiveTracks.ts`: 600 s grid, 150 s for lunar orbiters, n ≤ 5000, 6-wide request queue, keyed cache); cubic Hermite interpolation between samples (`lib/tracks.ts`) at every render tick; trails are the last 24 h (2 h for lunar orbiters) of the track | browser CR3BP display propagation from the catalog state |
+| Object panel state vector | `…/trajectory?frame=gcrf_km` for the selected object, Hermite-evaluated at the cursor (position + velocity); ranges from the rot_nd track | derived from rotating-frame display samples |
+| Orbit families | `GET /api/orbits/families` (9 families, 12–15 members each of 325, 200 samples per member); thinned to ≤ 5 members per family (3 for the resonant families), NRHO-tagged members always drawn, the 9:2 NRHO highlighted and labelled; legend with per-family show/hide and highlight | `src/lib/cr3bp.ts`: browser CR3BP corrector — L1/L2 Lyapunov, L2 southern halo→NRHO, DRO (25 members, closure < 1e-7) |
+| Ephemeris / frames | `GET /api/ephemeris/bodies` (DE440s) incl. the per-epoch rotating-frame basis `R`, `d_km`, `r_bary_km` → exact rotating↔inertial transform, Sun direction, Earth orientation (see below) | mean-element formulas (Meeus) in `src/lib/ephem.ts` |
+| Sensors | `GET /api/sensors`: 9 ground sites placed on the Earth (lat/lon, carried by Rᵀ·R_z(GMST)), 6 space observers on their host orbits (`GET /api/orbits/records/{id}` for `orbit.source = library:<id>`, phase convention τ = ((t − epoch)/T* + phase·P) mod P as in the backend; GEO hosts at the exact Earth-fixed geostationary point) | `demo/mockNetwork.ts`: 4 notional ground sites + DRO / L1 / GEO observers |
+| Coverage page | `POST /api/coverage` with the preset list from `GET /api/coverage/presets` (8 backend presets) | browser model, 5 studio presets |
+| Demo scenario | `GET /api/demo/scenario` (not live yet → mock) | `demo/mockScenario.ts`: 48 h story generated from CR3BP dynamics + computed ground observability (≈0.4 s) |
+| OD / maneuver / reachability / tasking / architecture | not live yet → mock | layout placeholders (zeros), never physics |
+
+### Frames (exact when the backend is up)
+
+The scene is authored in the Earth–Moon rotating frame, nondimensional (unit = instantaneous Earth–Moon distance,
+Moon pinned at (1−μ, 0, 0)); the Earth and Moon spheres are scaled by L*/d(t) so their radii stay true km.
+`/api/ephemeris/bodies` serves, per epoch, the basis `R` (columns x̂ ŷ ẑ in GCRF), `d_km` and `r_bary_km`, so that
+`r_gcrf = r_bary + d · R · r_rot`. Between hourly epochs `R` is slerped as a quaternion. The **inertial** view applies
+
+`p_display = R₀ᵀ (r_bary(t) + d(t) R(t) p_rot) / L* + (−μ, 0, 0)`
+
+to the whole synodic group (uniform scale d/L*, rotation R₀ᵀR(t), Earth fixed at (−μ,0,0); R₀ = basis at the timeline
+start, so both views coincide at t0 and the Earth–Moon line then sweeps about the display pole along the real
+ephemeris). Verified against the served ephemeris: the displayed Moon matches the DE440s Moon to < 1 m, the Earth stays
+fixed to 1 mm, and basis-converted GCRF trajectory samples match the served rot_nd samples to 3 m. Earth orientation is
+`Rᵀ·R_z(GMST)` (precession/nutation neglected); the Sun direction is `Rᵀ(sun − r_bary)`. Without a basis (backend
+down) the view falls back to the planar rotation about z by the mean-element Earth–Moon line angle, and the HUD says so.
+
+### Labels
+
+Every scene label (objects, EARTH/MOON, L-points, the 9:2 NRHO tag, ground sites) registers with
+`scene/labels.ts`; `scene/LabelDeclutter.tsx` projects them each tick and hides any label whose DOM box would overlap
+an already-placed one, by priority (selected object > Earth/Moon > L1/L2 > NRHO > simulated > real > L3–L5 > sites).
+The lunar orbiters therefore show one label at the overview zoom and all of them in the Moon close-up.
 
 ### What the browser CR3BP is (and is not)
 
@@ -93,26 +135,27 @@ speed, selects the protagonist and plays. On every render tick:
    feed lists only events the story has reached ("Upcoming" toggle for presenters), the Brief tab is withheld until the
    brief event, and timeline tooltips do not reveal future event text.
 
-Frame toggle: `rotating` keeps the Earth–Moon line on +x; `inertial` rotates the whole synodic group about +z (the
-ecliptic pole) by θ(t) − θ(t₀), θ = ecliptic longitude of the Moon from the ephemeris vector when loaded (else the mean
-lunar longitude). The lunar orbit inclination is not represented (HUD says "ecliptic-plane rotation"). GCRF values shown
-in the Object panel apply the obliquity rotation to that ecliptic-aligned frame.
+Frame toggle: see "Frames" above — exact DE440s basis when the backend is up, planar mean-element rotation otherwise.
 
 ## Layout
 
 ```
 src/
-  api/        client.ts (fetch wrapper, mock fallback, useBackendStatus), types.ts (PLAN.md §5 contract), mock.ts
-  lib/        cr3bp.ts (integrators, corrector, mock families), ephem.ts (Earth–Moon/Sun/GMST angles, obliquity, frame
-              conversion), groundVis.ts (ground/space observability rules ported from the backend)
+  api/        client.ts (fetch wrapper, mock fallback, per-endpoint LIVE/MOCK registry, OpenAPI probe), types.ts
+              (PLAN.md §5 contract + live shapes), mock.ts
+  lib/        cr3bp.ts (integrators, corrector, mock families), ephem.ts (DE440s rotating basis, Sun/GMST, inertial
+              display transform, mean-element fallback), tracks.ts (Hermite trajectory tracks), groundVis.ts
   store/      useSelene.ts (zustand: frame, time cursor, playback, selection, layers, events, scenario, dock, toasts)
   hooks/      usePlayback.ts (rAF loop advancing tSec by speed*dt)
-  scene/      SceneRoot (Canvas, frame group, camera rig), Bodies (day/night Earth & Moon, Sun light, L-points),
-              OrbitFamilies, Objects (+trails), ParticleCloud, Cones, GroundSites, Reachable, ReferenceGrid, constants
+  scene/      SceneRoot (Canvas, exact/planar frame group, camera rig, scale probe, label declutter), Bodies
+              (day/night Earth & Moon at true scale, L-points), OrbitFamilies (thinning, NRHO highlight), Objects
+              (track sampling, trails, labels), labels.ts + LabelDeclutter, frameBus (display matrix, scale bar),
+              ParticleCloud, Cones, GroundSites, Reachable, ReferenceGrid, constants
   panels/     TopBar (frame/layers/legend/demo/reset), Timeline (ticks + tooltips), EventsFeed, ObjectPanel
               (+SigmaSparkline), AnalystBrief, Toasts, CameraPresets, Dock
   pages/      OpsPage (/ops), ArchitecturePage (/architecture), CoveragePage (/coverage)
-  demo/       normalize.ts, useScenarioFrame.ts, useIdleObjects.ts, useDemoDriver.ts, mockScenario.ts, mockNetwork.ts
+  demo/       normalize.ts, useScenarioFrame.ts, useIdleObjects.ts (live tracks → frames; CR3BP fallback), useLiveTracks.ts
+              (trajectory fetch/cache), useDemoDriver.ts, mockScenario.ts, mockNetwork.ts
   styles/     theme.css (CSS variables; IBM Plex with system fallbacks, works offline)
 ```
 
@@ -128,13 +171,18 @@ Scene units: 1 scene unit = L* = 384 400 km (CR3BP nondimensional length), z up.
 
 ## Known limitations
 
-- Inertial view is a rotation about the ecliptic pole (lunar inclination neglected); the GCRF state vector in the Object
-  panel is derived from rotating-frame display samples with the same mean-element frame model (labelled). The backend OD
-  endpoints hold the filtered states.
+- In mock mode (backend down) the inertial view is a rotation about the ecliptic pole (lunar inclination neglected) and the
+  GCRF state vector is derived from display samples with the mean-element frame model (labelled). Live mode is exact
+  (DE440s basis); the state vector is the backend truth/Horizons trajectory, not a filter estimate — the OD endpoints
+  (not live yet) will hold the filtered states.
+- Earth orientation uses GMST only (no precession/nutation/polar motion); ground sites are on a spherical Earth.
+- Objects whose backend trajectory cannot be served in the current window (Horizons span, 120-day extension limit) are
+  listed with a NO DATA IN WINDOW tag and not drawn.
+- `GET /api/sensors/{id}/visibility` currently returns 500 from the backend (duplicate `sensor_id` kwarg in the
+  route); the client exposes it but nothing in the UI depends on it yet.
 - Mock-scenario filter behaviour is emulated (isotropic 25 m/s Δv inflation after a detection; fixed re-anchor σ after each
   space observation), not run; the live scenario uses the backend UKF.
 - The 3°–15° lunar-glare zone is a modelling assumption (shared with the backend) standing in for a sky-brightness model.
-- Object labels can overlap at the overview zoom; there is no label collision avoidance (toggle Labels or use a preset).
 - 60 fps with ~20k particles is the design target on a discrete GPU; it has not been profiled (headless runs use software GL).
 - Idle-mode motion is a CR3BP display propagation (no Sun, no SRP, no lunar gravity field); objects whose catalog epoch
   is > 60 days from the timeline are skipped.

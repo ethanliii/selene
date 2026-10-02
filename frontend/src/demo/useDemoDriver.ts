@@ -9,14 +9,28 @@
  *  - `resetDemo()` clears the scenario and returns to the idle 7-day timeline.
  */
 import { useEffect } from 'react';
-import { api } from '../api/client';
+import { api, getEndpointStatus } from '../api/client';
 import { useSelene, type Layers } from '../store/useSelene';
+import { SCENARIO_DURATION_S, SCENARIO_T0 } from './mockScenario';
 import { normalizeScenario } from './normalize';
 
 const MAX_TOASTS_PER_TICK = 3;
 
 export async function startDemo(): Promise<void> {
   const st = useSelene.getState();
+  if (getEndpointStatus().demo !== 'live') {
+    // The browser mock evaluates ground visibility (Earth orientation, Sun direction) through lib/ephem.ts, so
+    // install the ephemeris for the SCENARIO span first: otherwise the idle span's tables are the ones loaded and
+    // the generator would run on the mean-element model (lib/ephem.ts refuses to extrapolate outside its span).
+    // The Ops page re-fetches the same span after loadScenario (no-op) and the idle span again on Reset.
+    try {
+      const t1 = new Date(Date.parse(SCENARIO_T0) + SCENARIO_DURATION_S * 1000).toISOString();
+      const eph = await api.ephemerisBodies(SCENARIO_T0, t1, Math.round(SCENARIO_DURATION_S / 3600) + 1);
+      st.setEphemeris(eph); // store action also installs it in lib/ephem.ts
+    } catch (e) {
+      console.warn('ephemeris for the scenario span failed; mock scenario uses the mean-element model', e);
+    }
+  }
   const raw = await api.demoScenario();
   const sc = normalizeScenario(raw);
   st.loadScenario(sc);
@@ -25,12 +39,7 @@ export async function startDemo(): Promise<void> {
   st.setDockTab('events');
   st.pushToast({ text: `Scenario loaded: ${sc.meta.title}. ${sc.frames.length} frames over ${(sc.meta.duration_s / 3600).toFixed(0)} h.`, severity: 'info', kind: 'scenario', t: 0 });
   st.setPlaying(true);
-  // Refresh the ephemeris angles for the scenario span (true Earth–Moon line when the backend is up).
-  const t1 = new Date(Date.parse(sc.meta.t0_utc) + sc.meta.duration_s * 1000).toISOString();
-  api
-    .ephemerisBodies(sc.meta.t0_utc, t1, Math.min(400, Math.max(24, Math.round(sc.meta.duration_s / 3600))))
-    .then((e) => useSelene.getState().setEphemeris(e))
-    .catch((e) => console.warn('ephemeris failed', e));
+  // The Ops page re-fetches the ephemeris basis for the new timeline span (effect keyed on t0Iso/t0Sec/t1Sec).
 }
 
 export function resetDemo(): void {

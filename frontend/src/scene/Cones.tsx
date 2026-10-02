@@ -57,7 +57,7 @@ export interface SensorFOVConeProps extends Omit<ConeProps, 'color' | 'wireframe
 }
 
 export function SensorFOVCone({ active, sensorId: _sensorId, ...rest }: SensorFOVConeProps) {
-  return <Cone {...rest} color={active ? COLORS.ok : COLORS.accent} opacity={active ? 0.26 : 0.1} />;
+  return <Cone {...rest} color={active ? COLORS.ok : COLORS.accent} opacity={active ? 0.26 : 0.055} />;
 }
 
 export interface ExclusionConeProps extends Omit<ConeProps, 'color' | 'wireframe'> {
@@ -67,7 +67,7 @@ export interface ExclusionConeProps extends Omit<ConeProps, 'color' | 'wireframe
 
 export function ExclusionCone({ body, ...rest }: ExclusionConeProps) {
   const color = body === 'sun' ? COLORS.warn : body === 'moon' ? COLORS.muted : COLORS.accent2;
-  return <Cone {...rest} color={color} opacity={body === 'sun' ? 0.07 : 0.12} />;
+  return <Cone {...rest} color={color} opacity={body === 'sun' ? 0.045 : 0.08} />;
 }
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
@@ -82,7 +82,7 @@ const unit = (a: Vec3): Vec3 => {
  * while they are observing, since the scenario only supplies a pointing then). Length reaches the target if known.
  * Ground needles get a minimum half-angle so a 1° FOV stays visible at the Earth–Moon scale.
  */
-export function SensorFOVCones({ sensors, targets }: { sensors: FrameSensor[]; targets: Map<string, Vec3> }) {
+export function SensorFOVCones({ sensors, targets, groundIds }: { sensors: FrameSensor[]; targets: Map<string, Vec3>; groundIds?: Set<string> }) {
   return (
     <group>
       {sensors
@@ -90,8 +90,9 @@ export function SensorFOVCones({ sensors, targets }: { sensors: FrameSensor[]; t
         .map((s) => {
           const bs = (s.boresight_rot ?? s.pointing_rot)!;
           const tgt = s.target_id ? targets.get(s.target_id) : undefined;
-          const length = tgt ? Math.max(0.05, norm(sub(tgt, s.pos_rot!)) * 1.05) : 0.45;
-          const ground = s.id.startsWith('GND');
+          // Untasked observers stare at the Moon: the cone ends there instead of piercing through the scene.
+          const length = tgt ? Math.max(0.05, norm(sub(tgt, s.pos_rot!)) * 1.05) : Math.min(0.45, norm(sub(MOON_ROT, s.pos_rot!)));
+          const ground = s.id.startsWith('GND') || !!groundIds?.has(s.id);
           const half = Math.max(ground ? 0.35 : 0, (s.fov_deg ?? 2) / 2);
           return <SensorFOVCone key={s.id} sensorId={s.id} apex={s.pos_rot!} boresight={bs} halfAngleDeg={half} length={length} active={!!s.active} />;
         })}
@@ -115,7 +116,7 @@ function GroundGlareCone() {
   return (
     <mesh ref={ref} position={[EARTH_ROT[0] + length / 2, 0, 0]} quaternion={q}>
       <coneGeometry args={[baseRadius, length, 32, 1, true]} />
-      <meshBasicMaterial color={COLORS.muted} transparent opacity={0.12} side={THREE.DoubleSide} depthWrite={false} />
+      <meshBasicMaterial color={COLORS.muted} transparent opacity={0.09} side={THREE.DoubleSide} depthWrite={false} />
     </mesh>
   );
 }
@@ -125,7 +126,7 @@ function GroundGlareCone() {
  * and the phase-dependent lunar-glare cone for the ground network from the Earth centre. The Sun cones follow the
  * rotating-frame Sun direction each tick.
  */
-export function ExclusionCones({ sensors, config }: { sensors: FrameSensor[]; config: Sensors | null }) {
+export function ExclusionCones({ sensors, config, groundIds }: { sensors: FrameSensor[]; config: Sensors | null; groundIds?: Set<string> }) {
   const sunRef = useRef<THREE.Group>(null);
   useFrame(() => {
     // Rotate the Sun-cone group so its +x axis points at the Sun (cones inside are authored along +x).
@@ -133,7 +134,7 @@ export function ExclusionCones({ sensors, config }: { sensors: FrameSensor[]; co
     const d = sunDirRot(cursorMs());
     sunRef.current.rotation.z = Math.atan2(d[1], d[0]);
   });
-  const space = sensors.filter((s) => s.pos_rot && !s.id.startsWith('GND'));
+  const space = sensors.filter((s) => s.pos_rot && !s.id.startsWith('GND') && !groundIds?.has(s.id));
   const cfg = (id: string) => config?.space.find((x) => x.id === id);
   return (
     <group>

@@ -9,8 +9,10 @@ import type { Vec3 } from '../api/types';
 export const L_STAR_KM = 384400;
 export const kmToScene = (km: number): number => km / L_STAR_KM;
 
-export const EARTH_RADIUS = kmToScene(6378.1366);
-export const MOON_RADIUS = kmToScene(1737.4);
+export const EARTH_RADIUS_KM = 6378.1366;
+export const MOON_RADIUS_KM = 1737.4;
+export const EARTH_RADIUS = kmToScene(EARTH_RADIUS_KM);
+export const MOON_RADIUS = kmToScene(MOON_RADIUS_KM);
 
 /** CR3BP mass ratio μ = GM_M/(GM_E+GM_M) with DE440 GMs (PLAN.md §2.1). */
 export const MU = 4902.800118 / (398600.435507 + 4902.800118); // ≈ 0.0121505
@@ -29,38 +31,64 @@ export const LAGRANGE_ROT: { name: 'L1' | 'L2' | 'L3' | 'L4' | 'L5'; pos: Vec3 }
 ];
 
 /**
- * PLACEHOLDER synodic rotation rate used for the inertial-frame view until the ephemeris API
- * (/api/ephemeris/bodies -> true Earth–Moon line direction vs. time) is wired by a later agent.
- * Mean synodic month 29.53 d would be the Sun-relative rate; the task spec asks for 2π/(27.28 d)
- * here (close to the sidereal month 27.3217 d). Rotation is about +z (ecliptic-ish pole).
+ * PLACEHOLDER synodic rotation rate kept for reference only; the inertial view uses the DE440s basis when the
+ * backend is up (lib/ephem.ts) and the mean lunar longitude otherwise.
  */
 export const SYNODIC_RATE_RAD_S = (2 * Math.PI) / (27.28 * 86400);
 
-/** Camera defaults (scene units). */
+/**
+ * Camera defaults (scene units). The overview looks at the Earth–Moon system from the south-west, 32° above the
+ * plane: Earth, L1/L2, the full DRO/halo families and the NRHO's southward dip fit a 16:9 viewport.
+ */
 export const CAMERA = {
-  position: [1.9, -1.6, 1.15] as Vec3,
+  position: [0.6, -1.42, 0.9] as Vec3,
+  target: [0.54, 0.0, -0.03] as Vec3,
   near: 1e-4,
   far: 50,
-  fov: 40,
+  fov: 38,
 };
 
-/** Orbit-family colours (by family-name keyword, else by index). Shared by the scene and the TopBar legend. */
+/** Orbit-family colours (by canonical family name, else keyword, else by index). Shared by the scene and the legend. */
 export const FAMILY_PALETTE = ['#4cc9f0', '#9b5de5', '#f2cc8f', '#81b29a', '#e07a5f', '#f5b700', '#2dd4bf', '#ff8fab'];
+const FAMILY_COLORS: Record<string, string> = {
+  l1_lyapunov: '#4cc9f0',
+  l2_lyapunov: '#9b5de5',
+  l1_halo_n: '#e07a5f',
+  l1_halo_s: '#c96a62',
+  l2_halo_n: '#f2cc8f',
+  l2_halo_s: '#e8b85c',
+  dro: '#81b29a',
+  'resonant_3:1': '#ff8fab',
+  'resonant_2:1': '#c86fa8',
+};
+/** Highlight colour of the 9:2 NRHO member. */
+export const NRHO_COLOR = '#ffe59a';
+
 export function familyColor(name: string, index: number): string {
   const n = name.toLowerCase();
-  if (n.includes('dro')) return '#81b29a';
-  if (n.includes('nrho') || (n.includes('l2') && n.includes('halo'))) return '#f2cc8f';
-  if (n.includes('l1') && n.includes('halo')) return '#e07a5f';
-  if (n.includes('l1')) return '#4cc9f0';
-  if (n.includes('l2')) return '#9b5de5';
-  if (n.includes('resonant')) return '#ff8fab';
+  if (FAMILY_COLORS[n]) return FAMILY_COLORS[n];
+  if (n.includes('dro')) return FAMILY_COLORS.dro;
+  if (n.includes('nrho') || (n.includes('l2') && n.includes('halo'))) return FAMILY_COLORS.l2_halo_s;
+  if (n.includes('l1') && n.includes('halo')) return FAMILY_COLORS.l1_halo_n;
+  if (n.includes('l1')) return FAMILY_COLORS.l1_lyapunov;
+  if (n.includes('l2')) return FAMILY_COLORS.l2_lyapunov;
+  if (n.includes('resonant')) return FAMILY_COLORS['resonant_3:1'];
   if (n.includes('frozen') || n.includes('elfo')) return '#f5b700';
   return FAMILY_PALETTE[index % FAMILY_PALETTE.length];
 }
 
+/** Human label for a family name: "L2_halo_S" → "L2 halo (S)", "resonant_3:1" → "3:1 resonant". */
+export function familyLabel(name: string): string {
+  const m = /^(L[12])_(lyapunov|halo)(?:_([NS]))?$/i.exec(name);
+  if (m) return `${m[1].toUpperCase()} ${m[2].toLowerCase() === 'lyapunov' ? 'Lyapunov' : 'halo'}${m[3] ? ` (${m[3].toUpperCase()})` : ''}`;
+  const r = /^resonant_(\d+:\d+)$/i.exec(name);
+  if (r) return `${r[1]} resonant`;
+  return name.replace(/_/g, ' ');
+}
+
 /** Camera presets (rotating-frame coordinates, scene units). */
 export const CAMERA_PRESETS: Record<'overview' | 'earth' | 'moon' | 'l1' | 'l2', { position: Vec3; target: Vec3; label: string }> = {
-  overview: { position: [1.9, -1.6, 1.15], target: [0.5, 0, 0], label: 'Earth–Moon' },
+  overview: { position: CAMERA.position, target: CAMERA.target, label: 'Earth–Moon' },
   earth: { position: [-MU + 0.16, -0.2, 0.11], target: [-MU, 0, 0], label: 'Earth' },
   moon: { position: [1 - MU + 0.22, -0.3, 0.17], target: [1 - MU, 0, 0], label: 'Moon' },
   l1: { position: [0.836915 + 0.1, -0.16, 0.09], target: [0.836915, 0, 0], label: 'L1' },
