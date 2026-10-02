@@ -1,0 +1,2159 @@
+{
+ "meta": {
+  "title": "Unannounced DRO departure \u2014 custody loss and recovery (SIMULATED)",
+  "t0_utc": "2026-02-23T00:00:00Z",
+  "t1_utc": "2026-03-01T00:00:00Z",
+  "duration_s": 518400.00008034706,
+  "playback_s": 120.0,
+  "playback_speed": 4320.000000669559,
+  "frame_dt_s": 3600.0,
+  "n_frames": 145,
+  "protagonist_id": "SIM-DRO-01",
+  "relay_id": "SIM-NRHO-RELAY-01",
+  "fast": false,
+  "seed": 0,
+  "epoch_choice_rationale": "Window 2026-02-23 .. 2026-03-01 UTC (6 days, hourly frames) inside the cached DE440s/Horizons span. Scanning the span with the real visibility model: SIM-DRO-01 stays within ~12 deg of the Moon on the sky, so under the phase-dependent lunar-glare exclusion (3 deg at new Moon to 15 deg at full Moon) the nine ground sites can only track it on the nights of Feb 23-25 (Moon 33-60 % illuminated, exclusion 7-10 deg, object 10-11 deg from the Moon) and are blind from Feb 25 ~11 UTC through full Moon (Mar 3). The burn is placed 30 min after the last pre-burn ground tracklet so that exactly one post-burn ground observation catches the anomaly before the glare closes the window; the loss is therefore computed, not scripted. Known fragility: that tracklet clears the assumed phase-dependent glare cone by only ~0.1 deg, so a different glare parameterisation or a 30-min epoch shift leaves no post-burn ground observation and the builder raises instead of inventing a detection.",
+  "burn_rationale": "30 m/s (assumed, inside the 20-40 m/s class) at 2026-02-25T08:30Z. Direction: of 256 Fibonacci-sampled 30 m/s burn directions propagated with the reachability engine, the one whose coasting arc passes closest to the Earth-Moon L1 point (~510 km at +41.5 h vs ~4 200 km for the unperturbed DRO). The notional actor's intent is never inferred.",
+  "assumptions": [
+   "All sensors are notional (assumed representative specs); astrometric noise 1 arcsec (1-sigma, isotropic on-sky).",
+   "Routine custody: one ground tracklet every 2 h when any site can see the object; space observers are allocated to the libration-point objects until the tasker escalates.",
+   "Filter: UKF with DE440s Earth+Moon+Sun+SRP dynamics, process-noise PSD 1e-18 km^2/s^3; the t0 prior (5 km / 0.2 m/s, 1-sigma) stands for the catalogue covariance of an object that has been under custody for weeks (the 20 km / 2 m/s acquisition prior would drift past 100 km in the 8-h gaps between ground sites); after a gross NIS exceedance the prior is re-opened for an impulsive dv of sigma 25 m/s at an unknown epoch in the last gap (must bound the burn class).",
+   "Custody thresholds on the particle-cloud RSS position sigma: < 100 km CUSTODY, 100-1000 km DEGRADED, > 1000 km LOST.",
+   "Reachability: assumed 100 m/s planning budget, 168 h horizon, impulsive burns on a Fibonacci sphere x absolute magnitude ladder x burn epochs spanning the detection gap; fractions are fractions of sampled (direction, epoch) rays.",
+   "Tasking: greedy scheduler (trace gain for routine custody, log-det information gain for the escalation because re-acquisition must resolve range and velocity, not just plane-of-sky position) with the FOV acquisition model; every tasked look is verified against the SIMULATED truth (visibility model + mosaic of fields around the reachable-set centroid), never assumed; the scheduler's acquisition model and the verification share one search budget of 25 fields per 60-min slot (no explicit slew/exposure timeline); one slot of re-planning latency between the loss declaration and the first tasked look.",
+   "Ground-blind attribution: per hourly frame only the sites that are available (astronomical night, object above the minimum elevation) are asked why they are blocked; frames where no site is available are reported as 'no_site_available', not as glare.",
+   "Force model has no lunar gravity field or planetary perturbations beyond the Sun; light-time and aberration are not modelled."
+  ],
+  "disclaimer": "SIMULATED scenario. Every object, event and burn is notional and attributed to a 'notional actor' or 'notional allied operator'; no real country, operator or spacecraft is implicated. Sensor specifications are assumed representative values. This is a defensive awareness and traffic-safety product: reachability and tasking describe where an object could be and where to look, never intent or engagement.",
+  "engines": [
+   "selene.dynamics (DE440s N-body + SRP)",
+   "selene.sensors (photometry, exclusions, glare, eclipse)",
+   "selene.od.ukf",
+   "selene.od.particles",
+   "selene.maneuver.detection / estimation",
+   "selene.reachability.sampling / tasking_hint",
+   "selene.tasking.greedy"
+  ],
+  "build_log": [
+   "ground tracklets: 16 (15 pre-burn)",
+   "declared at 2026-02-25T10:00:00Z (NIS 6178, sensor siding_spring), latency 1.50 h",
+   "custody lost (sigma > 1000 km) at 2026-02-25T19:00:00Z; sigma at detection 104 km",
+   "tasker: 88 protagonist assignments in segment B (search_tiles=25, gain=logdet)",
+   "re-acquisition: OK by geo_west,geo_east,l1_halo_obs,dro_obs,nrho_obs (5 looks verified), 38 space tracklets"
+  ],
+  "event_kinds": [
+   "brief_ready",
+   "custody_degraded",
+   "custody_lost",
+   "custody_nominal",
+   "custody_regained",
+   "entered_region",
+   "maneuver",
+   "maneuver_characterised",
+   "maneuver_detected",
+   "observation",
+   "reachability_alert",
+   "tasking_update"
+  ],
+  "extra_event_kinds": {
+   "maneuver": "SIMULATED-truth marker of the burn itself (never visible to the operator at that instant)"
+  },
+  "search_fields_per_slot": 25,
+  "brief_generated_utc": "2026-10-02T14:52:51Z",
+  "timing_s": {
+   "truth_s": 0.36,
+   "ground_obs_s": 0.78,
+   "ukf1_detect_s": 0.29,
+   "reachability_s": 0.6,
+   "decay_s": 0.03,
+   "tasking_s": 1.54,
+   "reacq_s": 0.03,
+   "ukf2_detect_s": 0.02,
+   "dv_estimate_s": 0.25,
+   "clouds_s": 0.56,
+   "frames_s": 0.19,
+   "total_s": 4.69
+  }
+ },
+ "metrics": {
+  "protagonist": "SIM-DRO-01",
+  "relay": "SIM-NRHO-RELAY-01",
+  "custody_timeline": [
+   {
+    "t_s": 0.0,
+    "t_utc": "2026-02-23T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 3600.0,
+    "t_utc": "2026-02-23T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 7200.0,
+    "t_utc": "2026-02-23T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 10800.0,
+    "t_utc": "2026-02-23T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 14400.0,
+    "t_utc": "2026-02-23T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 18000.0,
+    "t_utc": "2026-02-23T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 21600.0,
+    "t_utc": "2026-02-23T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 25200.0,
+    "t_utc": "2026-02-23T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 28800.0,
+    "t_utc": "2026-02-23T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 32400.0,
+    "t_utc": "2026-02-23T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 36000.0,
+    "t_utc": "2026-02-23T10:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 39600.0,
+    "t_utc": "2026-02-23T11:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 43200.0,
+    "t_utc": "2026-02-23T12:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 46800.0,
+    "t_utc": "2026-02-23T13:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 50400.0,
+    "t_utc": "2026-02-23T14:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 54000.0,
+    "t_utc": "2026-02-23T15:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 57600.0,
+    "t_utc": "2026-02-23T16:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 61200.0,
+    "t_utc": "2026-02-23T17:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 64800.0,
+    "t_utc": "2026-02-23T18:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 68400.0,
+    "t_utc": "2026-02-23T19:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 72000.0,
+    "t_utc": "2026-02-23T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 75600.0,
+    "t_utc": "2026-02-23T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 79200.0,
+    "t_utc": "2026-02-23T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 82800.0,
+    "t_utc": "2026-02-23T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 86400.0,
+    "t_utc": "2026-02-24T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 90000.0,
+    "t_utc": "2026-02-24T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 93600.0,
+    "t_utc": "2026-02-24T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 97200.0,
+    "t_utc": "2026-02-24T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 100800.0,
+    "t_utc": "2026-02-24T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 104400.0,
+    "t_utc": "2026-02-24T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 108000.0,
+    "t_utc": "2026-02-24T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 111600.0,
+    "t_utc": "2026-02-24T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 115200.0,
+    "t_utc": "2026-02-24T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 118800.0,
+    "t_utc": "2026-02-24T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 122400.0,
+    "t_utc": "2026-02-24T10:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 126000.0,
+    "t_utc": "2026-02-24T11:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 129600.0,
+    "t_utc": "2026-02-24T12:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 133200.0,
+    "t_utc": "2026-02-24T13:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 136800.0,
+    "t_utc": "2026-02-24T14:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 140400.0,
+    "t_utc": "2026-02-24T15:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 144000.0,
+    "t_utc": "2026-02-24T16:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 147600.0,
+    "t_utc": "2026-02-24T17:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 151200.0,
+    "t_utc": "2026-02-24T18:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 154800.0,
+    "t_utc": "2026-02-24T19:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 158400.0,
+    "t_utc": "2026-02-24T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 162000.0,
+    "t_utc": "2026-02-24T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 165600.0,
+    "t_utc": "2026-02-24T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 169200.0,
+    "t_utc": "2026-02-24T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 172800.0,
+    "t_utc": "2026-02-25T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 176400.0,
+    "t_utc": "2026-02-25T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 180000.0,
+    "t_utc": "2026-02-25T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 183600.0,
+    "t_utc": "2026-02-25T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 187200.0,
+    "t_utc": "2026-02-25T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 190800.0,
+    "t_utc": "2026-02-25T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 194400.0,
+    "t_utc": "2026-02-25T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 198000.0,
+    "t_utc": "2026-02-25T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 201600.0,
+    "t_utc": "2026-02-25T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 205200.0,
+    "t_utc": "2026-02-25T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 208800.0,
+    "t_utc": "2026-02-25T10:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 212400.0,
+    "t_utc": "2026-02-25T11:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 216000.0,
+    "t_utc": "2026-02-25T12:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 219600.0,
+    "t_utc": "2026-02-25T13:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 223200.0,
+    "t_utc": "2026-02-25T14:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 226800.0,
+    "t_utc": "2026-02-25T15:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 230400.0,
+    "t_utc": "2026-02-25T16:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 234000.0,
+    "t_utc": "2026-02-25T17:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 237600.0,
+    "t_utc": "2026-02-25T18:00:00Z",
+    "status": "DEGRADED"
+   },
+   {
+    "t_s": 241200.0,
+    "t_utc": "2026-02-25T19:00:00Z",
+    "status": "LOST"
+   },
+   {
+    "t_s": 244800.0,
+    "t_utc": "2026-02-25T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 248400.0,
+    "t_utc": "2026-02-25T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 252000.0,
+    "t_utc": "2026-02-25T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 255600.0,
+    "t_utc": "2026-02-25T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 259200.0,
+    "t_utc": "2026-02-26T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 262800.0,
+    "t_utc": "2026-02-26T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 266400.0,
+    "t_utc": "2026-02-26T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 270000.0,
+    "t_utc": "2026-02-26T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 273600.0,
+    "t_utc": "2026-02-26T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 277200.0,
+    "t_utc": "2026-02-26T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 280800.0,
+    "t_utc": "2026-02-26T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 284400.0,
+    "t_utc": "2026-02-26T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 288000.0,
+    "t_utc": "2026-02-26T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 291600.0,
+    "t_utc": "2026-02-26T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 295200.0,
+    "t_utc": "2026-02-26T10:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 298800.0,
+    "t_utc": "2026-02-26T11:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 302400.0,
+    "t_utc": "2026-02-26T12:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 306000.0,
+    "t_utc": "2026-02-26T13:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 309600.0,
+    "t_utc": "2026-02-26T14:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 313200.0,
+    "t_utc": "2026-02-26T15:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 316800.0,
+    "t_utc": "2026-02-26T16:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 320400.0,
+    "t_utc": "2026-02-26T17:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 324000.0,
+    "t_utc": "2026-02-26T18:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 327600.0,
+    "t_utc": "2026-02-26T19:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 331200.0,
+    "t_utc": "2026-02-26T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 334800.0,
+    "t_utc": "2026-02-26T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 338400.0,
+    "t_utc": "2026-02-26T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 342000.0,
+    "t_utc": "2026-02-26T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 345600.0,
+    "t_utc": "2026-02-27T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 349200.0,
+    "t_utc": "2026-02-27T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 352800.0,
+    "t_utc": "2026-02-27T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 356400.0,
+    "t_utc": "2026-02-27T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 360000.0,
+    "t_utc": "2026-02-27T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 363600.0,
+    "t_utc": "2026-02-27T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 367200.0,
+    "t_utc": "2026-02-27T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 370800.0,
+    "t_utc": "2026-02-27T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 374400.0,
+    "t_utc": "2026-02-27T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 378000.0,
+    "t_utc": "2026-02-27T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 381600.0,
+    "t_utc": "2026-02-27T10:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 385200.0,
+    "t_utc": "2026-02-27T11:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 388800.0,
+    "t_utc": "2026-02-27T12:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 392400.0,
+    "t_utc": "2026-02-27T13:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 396000.0,
+    "t_utc": "2026-02-27T14:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 399600.0,
+    "t_utc": "2026-02-27T15:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 403200.0,
+    "t_utc": "2026-02-27T16:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 406800.0,
+    "t_utc": "2026-02-27T17:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 410400.0,
+    "t_utc": "2026-02-27T18:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 414000.0,
+    "t_utc": "2026-02-27T19:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 417600.0,
+    "t_utc": "2026-02-27T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 421200.0,
+    "t_utc": "2026-02-27T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 424800.0,
+    "t_utc": "2026-02-27T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 428400.0,
+    "t_utc": "2026-02-27T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 432000.0,
+    "t_utc": "2026-02-28T00:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 435600.0,
+    "t_utc": "2026-02-28T01:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 439200.0,
+    "t_utc": "2026-02-28T02:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 442800.0,
+    "t_utc": "2026-02-28T03:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 446400.0,
+    "t_utc": "2026-02-28T04:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 450000.0,
+    "t_utc": "2026-02-28T05:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 453600.0,
+    "t_utc": "2026-02-28T06:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 457200.0,
+    "t_utc": "2026-02-28T07:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 460800.0,
+    "t_utc": "2026-02-28T08:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 464400.0,
+    "t_utc": "2026-02-28T09:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 468000.0,
+    "t_utc": "2026-02-28T10:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 471600.0,
+    "t_utc": "2026-02-28T11:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 475200.0,
+    "t_utc": "2026-02-28T12:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 478800.0,
+    "t_utc": "2026-02-28T13:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 482400.0,
+    "t_utc": "2026-02-28T14:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 486000.0,
+    "t_utc": "2026-02-28T15:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 489600.0,
+    "t_utc": "2026-02-28T16:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 493200.0,
+    "t_utc": "2026-02-28T17:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 496800.0,
+    "t_utc": "2026-02-28T18:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 500400.0,
+    "t_utc": "2026-02-28T19:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 504000.0,
+    "t_utc": "2026-02-28T20:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 507600.0,
+    "t_utc": "2026-02-28T21:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 511200.0,
+    "t_utc": "2026-02-28T22:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 514800.0,
+    "t_utc": "2026-02-28T23:00:00Z",
+    "status": "CUSTODY"
+   },
+   {
+    "t_s": 518400.0,
+    "t_utc": "2026-03-01T00:00:00Z",
+    "status": "CUSTODY"
+   }
+  ],
+  "sigma_timeline": [
+   {
+    "t_s": 0.0,
+    "sigma_km": 8.81
+   },
+   {
+    "t_s": 3600.0,
+    "sigma_km": 8.91
+   },
+   {
+    "t_s": 7200.0,
+    "sigma_km": 9.18
+   },
+   {
+    "t_s": 10800.0,
+    "sigma_km": 9.61
+   },
+   {
+    "t_s": 14400.0,
+    "sigma_km": 10.16
+   },
+   {
+    "t_s": 18000.0,
+    "sigma_km": 10.83
+   },
+   {
+    "t_s": 21600.0,
+    "sigma_km": 7.17
+   },
+   {
+    "t_s": 25200.0,
+    "sigma_km": 7.76
+   },
+   {
+    "t_s": 28800.0,
+    "sigma_km": 8.45
+   },
+   {
+    "t_s": 32400.0,
+    "sigma_km": 9.22
+   },
+   {
+    "t_s": 36000.0,
+    "sigma_km": 10.04
+   },
+   {
+    "t_s": 39600.0,
+    "sigma_km": 10.91
+   },
+   {
+    "t_s": 43200.0,
+    "sigma_km": 11.82
+   },
+   {
+    "t_s": 46800.0,
+    "sigma_km": 12.75
+   },
+   {
+    "t_s": 50400.0,
+    "sigma_km": 13.71
+   },
+   {
+    "t_s": 54000.0,
+    "sigma_km": 14.68
+   },
+   {
+    "t_s": 57600.0,
+    "sigma_km": 15.67
+   },
+   {
+    "t_s": 61200.0,
+    "sigma_km": 16.67
+   },
+   {
+    "t_s": 64800.0,
+    "sigma_km": 17.69
+   },
+   {
+    "t_s": 68400.0,
+    "sigma_km": 18.71
+   },
+   {
+    "t_s": 72000.0,
+    "sigma_km": 15.37
+   },
+   {
+    "t_s": 75600.0,
+    "sigma_km": 16.09
+   },
+   {
+    "t_s": 79200.0,
+    "sigma_km": 16.25
+   },
+   {
+    "t_s": 82800.0,
+    "sigma_km": 16.94
+   },
+   {
+    "t_s": 86400.0,
+    "sigma_km": 17.64
+   },
+   {
+    "t_s": 90000.0,
+    "sigma_km": 18.34
+   },
+   {
+    "t_s": 93600.0,
+    "sigma_km": 18.2
+   },
+   {
+    "t_s": 97200.0,
+    "sigma_km": 18.87
+   },
+   {
+    "t_s": 100800.0,
+    "sigma_km": 19.02
+   },
+   {
+    "t_s": 104400.0,
+    "sigma_km": 19.67
+   },
+   {
+    "t_s": 108000.0,
+    "sigma_km": 18.14
+   },
+   {
+    "t_s": 111600.0,
+    "sigma_km": 18.74
+   },
+   {
+    "t_s": 115200.0,
+    "sigma_km": 18.46
+   },
+   {
+    "t_s": 118800.0,
+    "sigma_km": 19.03
+   },
+   {
+    "t_s": 122400.0,
+    "sigma_km": 17.38
+   },
+   {
+    "t_s": 126000.0,
+    "sigma_km": 17.88
+   },
+   {
+    "t_s": 129600.0,
+    "sigma_km": 18.39
+   },
+   {
+    "t_s": 133200.0,
+    "sigma_km": 18.9
+   },
+   {
+    "t_s": 136800.0,
+    "sigma_km": 19.41
+   },
+   {
+    "t_s": 140400.0,
+    "sigma_km": 19.92
+   },
+   {
+    "t_s": 144000.0,
+    "sigma_km": 15.44
+   },
+   {
+    "t_s": 147600.0,
+    "sigma_km": 15.82
+   },
+   {
+    "t_s": 151200.0,
+    "sigma_km": 16.21
+   },
+   {
+    "t_s": 154800.0,
+    "sigma_km": 16.6
+   },
+   {
+    "t_s": 158400.0,
+    "sigma_km": 13.79
+   },
+   {
+    "t_s": 162000.0,
+    "sigma_km": 14.1
+   },
+   {
+    "t_s": 165600.0,
+    "sigma_km": 12.01
+   },
+   {
+    "t_s": 169200.0,
+    "sigma_km": 12.28
+   },
+   {
+    "t_s": 172800.0,
+    "sigma_km": 12.54
+   },
+   {
+    "t_s": 176400.0,
+    "sigma_km": 12.81
+   },
+   {
+    "t_s": 180000.0,
+    "sigma_km": 11.63
+   },
+   {
+    "t_s": 183600.0,
+    "sigma_km": 11.86
+   },
+   {
+    "t_s": 187200.0,
+    "sigma_km": 10.52
+   },
+   {
+    "t_s": 190800.0,
+    "sigma_km": 10.73
+   },
+   {
+    "t_s": 194400.0,
+    "sigma_km": 10.09
+   },
+   {
+    "t_s": 198000.0,
+    "sigma_km": 10.28
+   },
+   {
+    "t_s": 201600.0,
+    "sigma_km": 9.44
+   },
+   {
+    "t_s": 205200.0,
+    "sigma_km": 9.61
+   },
+   {
+    "t_s": 208800.0,
+    "sigma_km": 101.58
+   },
+   {
+    "t_s": 212400.0,
+    "sigma_km": 192.82
+   },
+   {
+    "t_s": 216000.0,
+    "sigma_km": 296.25
+   },
+   {
+    "t_s": 219600.0,
+    "sigma_km": 402.61
+   },
+   {
+    "t_s": 223200.0,
+    "sigma_km": 510.08
+   },
+   {
+    "t_s": 226800.0,
+    "sigma_km": 618.1
+   },
+   {
+    "t_s": 230400.0,
+    "sigma_km": 726.46
+   },
+   {
+    "t_s": 234000.0,
+    "sigma_km": 835.04
+   },
+   {
+    "t_s": 237600.0,
+    "sigma_km": 943.81
+   },
+   {
+    "t_s": 241200.0,
+    "sigma_km": 1052.72
+   },
+   {
+    "t_s": 244800.0,
+    "sigma_km": 0.42
+   },
+   {
+    "t_s": 248400.0,
+    "sigma_km": 4.77
+   },
+   {
+    "t_s": 252000.0,
+    "sigma_km": 0.35
+   },
+   {
+    "t_s": 255600.0,
+    "sigma_km": 0.47
+   },
+   {
+    "t_s": 259200.0,
+    "sigma_km": 0.38
+   },
+   {
+    "t_s": 262800.0,
+    "sigma_km": 0.48
+   },
+   {
+    "t_s": 266400.0,
+    "sigma_km": 0.3
+   },
+   {
+    "t_s": 270000.0,
+    "sigma_km": 0.35
+   },
+   {
+    "t_s": 273600.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 277200.0,
+    "sigma_km": 0.24
+   },
+   {
+    "t_s": 280800.0,
+    "sigma_km": 0.17
+   },
+   {
+    "t_s": 284400.0,
+    "sigma_km": 0.19
+   },
+   {
+    "t_s": 288000.0,
+    "sigma_km": 0.16
+   },
+   {
+    "t_s": 291600.0,
+    "sigma_km": 0.18
+   },
+   {
+    "t_s": 295200.0,
+    "sigma_km": 0.17
+   },
+   {
+    "t_s": 298800.0,
+    "sigma_km": 0.19
+   },
+   {
+    "t_s": 302400.0,
+    "sigma_km": 0.19
+   },
+   {
+    "t_s": 306000.0,
+    "sigma_km": 0.2
+   },
+   {
+    "t_s": 309600.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 313200.0,
+    "sigma_km": 0.23
+   },
+   {
+    "t_s": 316800.0,
+    "sigma_km": 0.25
+   },
+   {
+    "t_s": 320400.0,
+    "sigma_km": 0.27
+   },
+   {
+    "t_s": 324000.0,
+    "sigma_km": 0.28
+   },
+   {
+    "t_s": 327600.0,
+    "sigma_km": 0.29
+   },
+   {
+    "t_s": 331200.0,
+    "sigma_km": 0.28
+   },
+   {
+    "t_s": 334800.0,
+    "sigma_km": 0.3
+   },
+   {
+    "t_s": 338400.0,
+    "sigma_km": 0.26
+   },
+   {
+    "t_s": 342000.0,
+    "sigma_km": 0.27
+   },
+   {
+    "t_s": 345600.0,
+    "sigma_km": 0.25
+   },
+   {
+    "t_s": 349200.0,
+    "sigma_km": 0.26
+   },
+   {
+    "t_s": 352800.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 356400.0,
+    "sigma_km": 0.23
+   },
+   {
+    "t_s": 360000.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 363600.0,
+    "sigma_km": 0.23
+   },
+   {
+    "t_s": 367200.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 370800.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 374400.0,
+    "sigma_km": 0.21
+   },
+   {
+    "t_s": 378000.0,
+    "sigma_km": 0.21
+   },
+   {
+    "t_s": 381600.0,
+    "sigma_km": 0.22
+   },
+   {
+    "t_s": 385200.0,
+    "sigma_km": 0.23
+   },
+   {
+    "t_s": 388800.0,
+    "sigma_km": 0.23
+   },
+   {
+    "t_s": 392400.0,
+    "sigma_km": 0.24
+   },
+   {
+    "t_s": 396000.0,
+    "sigma_km": 0.25
+   },
+   {
+    "t_s": 399600.0,
+    "sigma_km": 0.26
+   },
+   {
+    "t_s": 403200.0,
+    "sigma_km": 0.26
+   },
+   {
+    "t_s": 406800.0,
+    "sigma_km": 0.27
+   },
+   {
+    "t_s": 410400.0,
+    "sigma_km": 0.28
+   },
+   {
+    "t_s": 414000.0,
+    "sigma_km": 0.28
+   },
+   {
+    "t_s": 417600.0,
+    "sigma_km": 0.29
+   },
+   {
+    "t_s": 421200.0,
+    "sigma_km": 0.3
+   },
+   {
+    "t_s": 424800.0,
+    "sigma_km": 0.3
+   },
+   {
+    "t_s": 428400.0,
+    "sigma_km": 0.31
+   },
+   {
+    "t_s": 432000.0,
+    "sigma_km": 0.32
+   },
+   {
+    "t_s": 435600.0,
+    "sigma_km": 0.32
+   },
+   {
+    "t_s": 439200.0,
+    "sigma_km": 0.33
+   },
+   {
+    "t_s": 442800.0,
+    "sigma_km": 0.34
+   },
+   {
+    "t_s": 446400.0,
+    "sigma_km": 0.34
+   },
+   {
+    "t_s": 450000.0,
+    "sigma_km": 0.35
+   },
+   {
+    "t_s": 453600.0,
+    "sigma_km": 0.36
+   },
+   {
+    "t_s": 457200.0,
+    "sigma_km": 0.36
+   },
+   {
+    "t_s": 460800.0,
+    "sigma_km": 0.37
+   },
+   {
+    "t_s": 464400.0,
+    "sigma_km": 0.38
+   },
+   {
+    "t_s": 468000.0,
+    "sigma_km": 0.39
+   },
+   {
+    "t_s": 471600.0,
+    "sigma_km": 0.39
+   },
+   {
+    "t_s": 475200.0,
+    "sigma_km": 0.4
+   },
+   {
+    "t_s": 478800.0,
+    "sigma_km": 0.41
+   },
+   {
+    "t_s": 482400.0,
+    "sigma_km": 0.41
+   },
+   {
+    "t_s": 486000.0,
+    "sigma_km": 0.42
+   },
+   {
+    "t_s": 489600.0,
+    "sigma_km": 0.43
+   },
+   {
+    "t_s": 493200.0,
+    "sigma_km": 0.44
+   },
+   {
+    "t_s": 496800.0,
+    "sigma_km": 0.44
+   },
+   {
+    "t_s": 500400.0,
+    "sigma_km": 0.45
+   },
+   {
+    "t_s": 504000.0,
+    "sigma_km": 0.46
+   },
+   {
+    "t_s": 507600.0,
+    "sigma_km": 0.47
+   },
+   {
+    "t_s": 511200.0,
+    "sigma_km": 0.47
+   },
+   {
+    "t_s": 514800.0,
+    "sigma_km": 0.48
+   },
+   {
+    "t_s": 518400.0,
+    "sigma_km": 0.49
+   }
+  ],
+  "custody_pct": 93.1,
+  "custody_status_counts": {
+   "CUSTODY": 135,
+   "DEGRADED": 9,
+   "LOST": 1
+  },
+  "t_burn_utc": "2026-02-25T08:30:00Z",
+  "t_burn_s": 203400.00002670288,
+  "t_detect_utc": "2026-02-25T10:00:00Z",
+  "t_detect_s": 208800.0,
+  "detect_sensor": "siding_spring",
+  "detect_nis": 6177.8,
+  "detect_residual_arcsec": 96.51,
+  "detection_latency_h": 1.5,
+  "t_degraded_utc": "2026-02-25T10:00:00Z",
+  "t_degraded_s": 208800.0,
+  "t_lost_utc": "2026-02-25T19:00:00Z",
+  "t_lost_s": 241200.0,
+  "loss_reason": {
+   "dominant": "moon_exclusion",
+   "at_loss": "moon_exclusion",
+   "available_sites_at_loss": [
+    "sutherland"
+   ],
+   "counts_between_detection_and_loss": {
+    "no_site_available": 5,
+    "moon_exclusion": 4
+   },
+   "counts_after_detection": {
+    "no_site_available": 7,
+    "moon_exclusion": 79
+   },
+   "n_blind_frames_after_detection": 86,
+   "n_frames_no_site_available_after_detection": 7,
+   "n_frames_available_site_blocked_after_detection": 79,
+   "note": "per hourly frame: majority highest-priority target-specific reason over the AVAILABLE ground sites (night, object above the elevation limit); 'no_site_available' when every site was in daylight or had the object below its elevation limit. 'dominant' is the most common target-specific reason over the post-detection blind frames with an available site; the no-site frames are reported separately and are not attributed to glare."
+  },
+  "ground_blind_reason_counts": {
+   "no_site_available": 7,
+   "moon_exclusion": 79
+  },
+  "moon_illum_at_loss": 0.645,
+  "moon_sep_deg_at_loss": 8.87,
+  "sigma_at_detection_km": 104.4,
+  "max_sigma_km": 1052.7,
+  "t_max_sigma_utc": "2026-02-25T19:00:00Z",
+  "tasking": {
+   "search_tiles_used_by_scheduler": 25,
+   "search_budget_note": "mosaic budget per tasked slot shared by the scheduler's acquisition model and the truth verification (a look acquires iff the truth is within the radius min(p90 spread, 0.5 FOV sqrt(budget)) of the tasked boresight)",
+   "attempts": [
+    {
+     "t_s": 825321669.1852615,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "geo_west",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "pointing_gcrf": [
+      0.12872003090906323,
+      0.8708037659880057,
+      0.4744807211930493
+     ],
+     "ra_deg": 81.59157005003895,
+     "dec_deg": 28.32554522247472,
+     "spread_p90_deg": 0.5489268690411266,
+     "n_fields_p90": 1,
+     "fov_deg": 3.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 1.0,
+     "range_km": 328193.49439907214,
+     "magnitude": 16.90709904708353,
+     "offset_deg": 0.20434894651500451,
+     "mosaic_radius_deg": 1.5,
+     "n_fields_used": 1,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.1852615,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "geo_east",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "pointing_gcrf": [
+      0.37106750505744474,
+      0.8007025033687706,
+      0.4703024641541092
+     ],
+     "ra_deg": 65.13569979251972,
+     "dec_deg": 28.05393192699303,
+     "spread_p90_deg": 0.5423764389466972,
+     "n_fields_p90": 1,
+     "fov_deg": 3.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 1.0,
+     "range_km": 330366.61082253535,
+     "magnitude": 17.294793835754785,
+     "offset_deg": 0.21547936253493014,
+     "mosaic_radius_deg": 1.5,
+     "n_fields_used": 1,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.1852615,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "l1_halo_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "pointing_gcrf": [
+      0.9488689223262046,
+      0.3112328849368184,
+      -0.05274333680582164
+     ],
+     "ra_deg": 18.159701909808515,
+     "dec_deg": -3.0233734695971313,
+     "spread_p90_deg": 8.493731405536892,
+     "n_fields_p90": 73,
+     "fov_deg": 2.0,
+     "visible_fraction": 0.9872685185185185,
+     "fov_capture_fraction": 0.4409722222222222,
+     "range_km": 18518.037260113942,
+     "magnitude": 13.317154900477501,
+     "offset_deg": 2.5145930342193634,
+     "mosaic_radius_deg": 5.0,
+     "n_fields_used": 25,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.1852615,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "dro_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "pointing_gcrf": [
+      -0.9184815949207188,
+      -0.33228255935188494,
+      -0.2144291504027698
+     ],
+     "ra_deg": 199.88879549531126,
+     "dec_deg": -12.38203897813805,
+     "spread_p90_deg": 3.468529487186903,
+     "n_fields_p90": 13,
+     "fov_deg": 2.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 0.6909722222222222,
+     "range_km": 52382.77143138182,
+     "magnitude": 12.40718039013203,
+     "offset_deg": 1.0647738740299084,
+     "mosaic_radius_deg": 3.468529487186903,
+     "n_fields_used": 13,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.1852615,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "nrho_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "pointing_gcrf": [
+      0.42400457797840285,
+      -0.8451020964095738,
+      0.3256110632295837
+     ],
+     "ra_deg": 296.64383343367433,
+     "dec_deg": 19.00260017183897,
+     "spread_p90_deg": 1.789276846780443,
+     "n_fields_p90": 4,
+     "fov_deg": 2.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 0.78125,
+     "range_km": 99260.71787799604,
+     "magnitude": 16.423185019187937,
+     "offset_deg": 0.5536147412129172,
+     "mosaic_radius_deg": 1.789276846780443,
+     "n_fields_used": 4,
+     "acquired": true
+    }
+   ],
+   "n_followup_obs": 38,
+   "scheduler": "greedy (logdet gain, FOV acquisition model), priority 3 on the object of interest",
+   "escalation_delay_h": 1.0,
+   "sensor_id": "geo_west",
+   "sensor_ids": [
+    "geo_west",
+    "geo_east",
+    "l1_halo_obs",
+    "dro_obs",
+    "nrho_obs"
+   ],
+   "t_task_utc": "2026-02-25T20:00:00Z",
+   "t_task_s": 244800.0,
+   "pointing_ra_deg": 81.592,
+   "pointing_dec_deg": 28.326,
+   "n_fields": 1,
+   "n_fields_used": 1,
+   "mosaic_radius_deg": 1.5,
+   "spread_p90_deg": 0.55,
+   "offset_deg": 0.204,
+   "range_km": 328193.0,
+   "magnitude": 16.91,
+   "sensors": [
+    {
+     "t_s": 825321669.185,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "geo_west",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "ra_deg": 81.592,
+     "dec_deg": 28.326,
+     "spread_p90_deg": 0.549,
+     "n_fields_p90": 1,
+     "fov_deg": 3.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 1.0,
+     "range_km": 328193.494,
+     "magnitude": 16.907,
+     "offset_deg": 0.204,
+     "mosaic_radius_deg": 1.5,
+     "n_fields_used": 1,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.185,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "geo_east",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "ra_deg": 65.136,
+     "dec_deg": 28.054,
+     "spread_p90_deg": 0.542,
+     "n_fields_p90": 1,
+     "fov_deg": 3.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 1.0,
+     "range_km": 330366.611,
+     "magnitude": 17.295,
+     "offset_deg": 0.215,
+     "mosaic_radius_deg": 1.5,
+     "n_fields_used": 1,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.185,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "l1_halo_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "ra_deg": 18.16,
+     "dec_deg": -3.023,
+     "spread_p90_deg": 8.494,
+     "n_fields_p90": 73,
+     "fov_deg": 2.0,
+     "visible_fraction": 0.987,
+     "fov_capture_fraction": 0.441,
+     "range_km": 18518.037,
+     "magnitude": 13.317,
+     "offset_deg": 2.515,
+     "mosaic_radius_deg": 5.0,
+     "n_fields_used": 25,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.185,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "dro_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "ra_deg": 199.889,
+     "dec_deg": -12.382,
+     "spread_p90_deg": 3.469,
+     "n_fields_p90": 13,
+     "fov_deg": 2.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 0.691,
+     "range_km": 52382.771,
+     "magnitude": 12.407,
+     "offset_deg": 1.065,
+     "mosaic_radius_deg": 3.469,
+     "n_fields_used": 13,
+     "acquired": true
+    },
+    {
+     "t_s": 825321669.185,
+     "t_utc": "2026-02-25T20:00:00Z",
+     "sensor_id": "nrho_obs",
+     "truth_visible": true,
+     "truth_block_reason": [],
+     "ra_deg": 296.644,
+     "dec_deg": 19.003,
+     "spread_p90_deg": 1.789,
+     "n_fields_p90": 4,
+     "fov_deg": 2.0,
+     "visible_fraction": 1.0,
+     "fov_capture_fraction": 0.781,
+     "range_km": 99260.718,
+     "magnitude": 16.423,
+     "offset_deg": 0.554,
+     "mosaic_radius_deg": 1.789,
+     "n_fields_used": 4,
+     "acquired": true
+    }
+   ],
+   "not_acquired": [],
+   "blocked": [
+    {
+     "sensor_id": "l2_halo_obs",
+     "reason": "sun_exclusion",
+     "visible_fraction": 0.0
+    }
+   ]
+  },
+  "t_regained_utc": "2026-02-25T20:00:00Z",
+  "t_regained_s": 244800.0,
+  "regained_after_h": 1.0,
+  "regained_after_burn_h": 11.5,
+  "sigma_after_regain_km": 0.42,
+  "dv_true_mps": 30.0,
+  "dv_true_dir_gcrf": [
+   -0.88729,
+   0.39949,
+   0.23047
+  ],
+  "dv_true_rtn_mps": [
+   -29.55,
+   5.02,
+   -1.29
+  ],
+  "dv_true_vnb_mps": [
+   13.14,
+   -1.29,
+   -26.94
+  ],
+  "dv_true_frame_center": "moon",
+  "dv_est_mps": 30.022,
+  "dv_est_sigma_mps": 0.027,
+  "dv_est_err_pct": 0.07,
+  "dir_err_deg": 0.112,
+  "dir_sigma_deg": 0.065,
+  "t_burn_est_utc": "2026-02-25T08:30:45Z",
+  "t_burn_est_sigma_s": 53.3,
+  "t_burn_est_err_s": 45.4,
+  "dv_estimate": {
+   "dv_mps": 30.02,
+   "dv_sigma_mps": 0.03,
+   "direction_gcrf": [
+    -0.8882,
+    0.3979,
+    0.2297
+   ],
+   "direction_rot": [
+    0.2556,
+    0.9658,
+    0.043
+   ],
+   "direction_sigma_deg": 0.06,
+   "dv_rtn_mps": [
+    -29.56,
+    5.08,
+    -1.29
+   ],
+   "dv_vnb_mps": [
+    13.21,
+    -1.29,
+    -26.93
+   ],
+   "frame_center": "moon",
+   "t_burn_utc": "2026-02-25T08:30:45Z",
+   "t_burn_sigma_s": 53.3,
+   "t_burn_err_s": 45.4,
+   "n_obs": 10,
+   "converged": true,
+   "residual_rms_arcsec": 1.005,
+   "reduced_chi2": 1.229,
+   "classification": {
+    "primary": "radial (inward)",
+    "labels": [
+     "dominant component in moon-centred RTN: R=-0.98 T=+0.17 N=-0.04",
+     "Jacobi constant decreased (energy added in the rotating frame)",
+     "post-burn energy allows Earth-Moon transit through both gateways",
+     "Earth-relative energy increased (outward / apogee raise)",
+     "\u0394v direction consistent with departure toward Moon (cos=0.98)"
+    ],
+    "heuristic": true,
+    "note": "Descriptive heuristic only: compares Jacobi constant / two-body energies / RTN components; does not infer intent.",
+    "jacobi_pre": 2.930632286857601,
+    "jacobi_post": 2.9220403218312083,
+    "jacobi_L1": 3.1883411065563045,
+    "jacobi_L2": 3.1721604513884243,
+    "energy_earth_pre_km2_s2": -0.4251425801780385,
+    "energy_earth_post_km2_s2": -0.39128236692034646,
+    "energy_moon_pre_km2_s2": -0.04984567574035324,
+    "energy_moon_post_km2_s2": -0.04667916996211916,
+    "alignment_cos": {
+     "Earth": -0.07657356840978209,
+     "Moon": 0.9846281155955035,
+     "L1": 0.7852609468085933,
+     "L2": 0.7594863501071154
+    },
+    "frame_center": "moon"
+   },
+   "grid": [
+    {
+     "t_burn_s": 825278869.1852615,
+     "cost": 732.7688341211858,
+     "dv_mps": 29.449089993771306
+    },
+    {
+     "t_burn_s": 825279669.1852615,
+     "cost": 165.69540182633386,
+     "dv_mps": 29.763931296643776
+    },
+    {
+     "t_burn_s": 825280469.1852615,
+     "cost": 29.218516148426744,
+     "dv_mps": 30.084451311778935
+    },
+    {
+     "t_burn_s": 825281269.1852615,
+     "cost": 347.63434788200357,
+     "dv_mps": 30.41004728088963
+    },
+    {
+     "t_burn_s": 825282069.1852615,
+     "cost": 1146.2203299331936,
+     "dv_mps": 30.740045717819996
+    },
+    {
+     "t_burn_s": 825282869.1852615,
+     "cost": 2451.2361654253673,
+     "dv_mps": 31.073695984435783
+    },
+    {
+     "t_burn_s": 825283669.1852615,
+     "cost": 4289.916567386572,
+     "dv_mps": 31.41013346218285
+    },
+    {
+     "t_burn_s": 825284469.1852615,
+     "cost": 6690.454023501062,
+     "dv_mps": 31.7484447193672
+    },
+    {
+     "t_burn_s": 825285269.1852615,
+     "cost": 9681.969506998694,
+     "dv_mps": 32.087624884242565
+    }
+   ]
+  },
+  "dv_estimate_error": null,
+  "t_characterised_utc": "2026-02-25T22:00:00Z",
+  "detection": {
+   "status": "maneuver_declared",
+   "declared": true,
+   "alpha": 0.01,
+   "alpha_familywise_per_test": {
+    "nis": 0.00010691275095109365,
+    "nis_window": 0.00010691275095109365,
+    "gap_refit": 0.00010691275095109365
+   },
+   "threshold_nis": 9.21,
+   "threshold_nis_familywise": 18.29,
+   "n_updates": 54,
+   "n_tested": 49,
+   "counts": {
+    "nis": 1,
+    "nis_window": 5,
+    "gap_refit": 0,
+    "cusum": 1,
+    "nees": 0
+   },
+   "mean_nis_tested": 127.9,
+   "baseline_established": true,
+   "warnings": [],
+   "nees_mean": 4.52,
+   "nees_bounds": [
+    5.1,
+    6.98
+   ],
+   "nees_consistent": false,
+   "nees_n_epochs": 52,
+   "nees_baseline_mean": 0.84,
+   "nees_baseline_bound": 14.1,
+   "reopen_events": [
+    {
+     "t_s": 825285669.1852615,
+     "nis": 6177.767248301037,
+     "gap_s": 7200.0,
+     "sensor_id": "siding_spring"
+    }
+   ]
+  },
+  "reachability": {
+   "dv_budget_mps": 100.0,
+   "horizon_h": 168.0,
+   "n_samples": 1728,
+   "n_dirs": 96,
+   "burn_epochs_h": [
+    0.0,
+    1.0,
+    2.0
+   ],
+   "t_ref_utc": "2026-02-25T08:00:00Z",
+   "regions": [
+    {
+     "key": "l1_gateway",
+     "name": "L1 gateway",
+     "kind": "gateway",
+     "fraction": 1.0,
+     "sample_fraction": 0.9763,
+     "n_hit": 1687,
+     "earliest_h": 29.0,
+     "earliest_nominal_h": 34.0,
+     "min_dv_mps": 0.0,
+     "nominal_hits": true,
+     "newly_reachable": false,
+     "why_it_matters": "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an object that can reach it can reach the Moon-Earth corridor and the lunar vicinity."
+    },
+    {
+     "key": "l2_gateway",
+     "name": "L2 gateway",
+     "kind": "gateway",
+     "fraction": 0.2778,
+     "sample_fraction": 0.0891,
+     "n_hit": 154,
+     "earliest_h": 108.0,
+     "earliest_nominal_h": null,
+     "min_dv_mps": 10.6,
+     "nominal_hits": false,
+     "newly_reachable": true,
+     "why_it_matters": "The L2 neck is the doorway to translunar space and the home of far-side relays and halo/NRHO traffic; it is also the hardest region to observe from Earth (behind the Moon, lunar glare)."
+    },
+    {
+     "key": "nrho_corridor",
+     "name": "NRHO corridor (9:2)",
+     "kind": "corridor",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "The 9:2 NRHO is the staging/relay corridor (Gateway class); an unidentified object entering the tube is a conjunction-screening and traffic-safety concern for the notional allied relay."
+    },
+    {
+     "key": "south_pole_approach",
+     "name": "Lunar south-pole approach",
+     "kind": "lunar",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "South-pole landers, relays and the NRHO perilune passes all live here; it is the busiest lunar approach volume of the coming decade and sits in the Earth-facing/far-side limb geometry that ground sensors struggle with."
+    },
+    {
+     "key": "llo_shell",
+     "name": "Low lunar orbit shell",
+     "kind": "lunar",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "The shell occupied by science orbiters and descent/ascent arcs; entry means a close lunar approach and a conjunction-screening obligation."
+    },
+    {
+     "key": "llo_inner",
+     "name": "Low lunar orbit (inner, < 500 km)",
+     "kind": "lunar",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "Where most active lunar orbiters fly; the tightest conjunction-screening volume."
+    },
+    {
+     "key": "geo_belt_return",
+     "name": "GEO belt return",
+     "kind": "earth",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "An xGEO object dropping back toward the GEO belt is the highest-consequence Earth-orbit safety case: it crosses the most valuable orbital regime at km/s relative speeds and is hard to track until it is close."
+    },
+    {
+     "key": "earth_return_escape",
+     "name": "Exterior-realm excursion (beyond the L2 neck)",
+     "kind": "escape",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "Beyond ~500 000 km the object is outside the volume Moon-pointed sensors search; whether it later escapes or swings back, custody is lost unless the network is re-tasked outward."
+    },
+    {
+     "key": "lunar_impact",
+     "name": "Lunar impact",
+     "kind": "safety",
+     "fraction": 0.0,
+     "sample_fraction": 0.0,
+     "n_hit": 0,
+     "earliest_h": null,
+     "earliest_nominal_h": null,
+     "min_dv_mps": null,
+     "nominal_hits": false,
+     "newly_reachable": false,
+     "why_it_matters": "Pure safety: an impacting trajectory ends custody and may endanger surface assets."
+    }
+   ],
+   "refined_min_dv": {
+    "l2_gateway": {
+     "region": "l2_gateway",
+     "dv_mps": 10.625,
+     "dv_mps_lower": 10.0,
+     "dir_gcrf": [
+      -0.3490811668946689,
+      0.8341116024300016,
+      0.42708333333333337
+     ],
+     "burn_h": 0.0,
+     "arrival_h": 168.0,
+     "sample_index": 315,
+     "note": "sampled minimum along one direction/epoch (upper bound on the true optimum)"
+    }
+   },
+   "n_terminated": 0
+  },
+  "truth_geometry": {
+   "min_dist_to_L1_km": 508.0,
+   "t_min_dist_to_L1_utc": "2026-02-27T02:00:00Z",
+   "min_dist_to_relay_km": 56192.0,
+   "t_min_dist_to_relay_utc": "2026-02-27T02:00:00Z",
+   "region_entries": [
+    {
+     "key": "l1_gateway",
+     "name": "L1 gateway",
+     "t_s": 825397269.1852615,
+     "frame": 89,
+     "kind": "gateway",
+     "t_utc": "2026-02-26T17:00:00Z"
+    }
+   ]
+  },
+  "observations": {
+   "n_total": 54,
+   "n_ground": 16,
+   "n_ground_pre_burn": 15,
+   "n_ground_post_burn": 1,
+   "n_space_followup": 38,
+   "by_sensor": {
+    "haleakala": 5,
+    "teide": 4,
+    "socorro": 4,
+    "siding_spring": 2,
+    "diego_garcia": 1,
+    "dro_obs": 9,
+    "geo_east": 2,
+    "geo_west": 4,
+    "l1_halo_obs": 15,
+    "nrho_obs": 8
+   },
+   "sigma_arcsec": 1.0,
+   "cadence_h": 2.0
+  },
+  "filter": {
+   "kind": "ukf",
+   "q_psd_km2_s3": 1e-18,
+   "prior_pos_km": 5.0,
+   "prior_vel_mps": 0.2,
+   "reopen_sigma_dv_mps": 25.0,
+   "reopen_nis_trigger": 50.0,
+   "n_particles": 1500,
+   "custody_km": 100.0,
+   "lost_km": 1000.0
+  },
+  "other_objects_custody": {
+   "SIM-DRO-02": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 10.0
+   },
+   "SIM-NRHO-RELAY-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 10.0
+   },
+   "SIM-NRHO-02": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 10.0
+   },
+   "SIM-L1-HALO-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 17.3
+   },
+   "SIM-L2-HALO-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 17.3
+   },
+   "SIM-L2-HALO-LOG-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 17.3
+   },
+   "SIM-L2-LYAP-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 10.0
+   },
+   "SIM-ELFO-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 17.3
+   },
+   "SIM-RES-31-01": {
+    "custody_pct": 100.0,
+    "max_sigma_km": 1.5
+   },
+   "SIM-XGEO-DEBRIS-01": {
+    "custody_pct": 82.8,
+    "max_sigma_km": 157.5
+   }
+  },
+  "tasking_segments": {
+   "A": {
+    "custody_pct": 100.0,
+    "n_objects": 10,
+    "n_sensors": 6,
+    "n_slots": 68,
+    "horizon_h": 68.0,
+    "n_observations": 407,
+    "mean_tslo_h": 4.629
+   },
+   "B": {
+    "custody_pct": 100.0,
+    "n_objects": 11,
+    "n_sensors": 6,
+    "n_slots": 48,
+    "horizon_h": 48.0,
+    "n_observations": 288,
+    "mean_tslo_h": 3.711
+   },
+   "C": {
+    "custody_pct": 92.163,
+    "n_objects": 11,
+    "n_sensors": 6,
+    "n_slots": 28,
+    "horizon_h": 28.0,
+    "n_observations": 168,
+    "mean_tslo_h": 3.069
+   }
+  }
+ },
+ "n_events": 33,
+ "n_frames": 145,
+ "bundle_bytes": 3726966
+}

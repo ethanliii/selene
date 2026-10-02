@@ -10,8 +10,8 @@
 | 5 Maneuver detection | done | per-update/windowed NIS, gap re-fit Mahalanobis, NEES monitor, CUSUM; Pfa 0.0100 at α=0.01 (4800 updates); 5 m/s burn detected on first post-burn obs; Δv est. error ~0.2 % / 0.14° with 10 obs; POST /api/maneuver/detect |
 | 6 Reachability | done | 9 named regions (L1/L2 gateway, NRHO corridor, S-pole approach, LLO, GEO return, escape), stacked propagation 2000×72 h in 0.2 s, impact termination by event, sensor pointing hints; POST /api/reachability ~0.3 s |
 | 7 Sensor tasking | done | linear-covariance custody engine, greedy log-det scheduler, receding-horizon MILP (HiGHS) with rank-weighted diminishing returns, random/round-robin baselines, custody %/TSLO metrics; POST /api/tasking/schedule ~2 s |
-| 8 Architecture studio | pending | |
-| 9 API + demo scenario | pending | |
+| 8 Architecture studio | done | 6 candidate platforms, 4 presets, common-random-number Monte Carlo: coverage %, greedy-tasker custody %, revisit, detection latency (documented STM+NIS surrogate); POST /api/architecture/evaluate ~2-10 s. Ground only → +DRO+L1 halo: coverage 10→77 %, custody 62→95 % |
+| 9 API + demo scenario | done | 6-day scripted story computed by the real engines (burn 30 m/s on 2026-02-25, detected +1.5 h, lost in lunar glare σ 1053 km, DRO observer tasked, regained +1 h, Δv est. +0.07 %/0.11°); 3.7 MB bundle, 145 frames, 34 events, template analyst brief; GET /api/demo/scenario 0.16 s |
 | 10 Frontend | in progress | Ops scene layers (families, objects+trails, particle clouds, FOV/exclusion cones), panels, demo driver (mock-first); Coverage page; Architecture Studio page — live wiring to backend pending |
 | 11 Docs & final review | pending | |
 

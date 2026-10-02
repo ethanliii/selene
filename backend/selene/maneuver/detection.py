@@ -295,7 +295,7 @@ def _propagate_with_stm(x, t0, times, params, rtol, atol):
     times = np.asarray(times, dtype=np.float64)
     out_x = np.empty((times.size, 6))
     out_phi = np.empty((times.size, 6, 6))
-    mask0 = np.isclose(times, t0)
+    mask0 = np.isclose(times, t0, rtol=0.0, atol=1e-6)  # absolute tolerance: times are ~8e8 s TDB (default rtol=1e-5 ~ 2.3 h)
     for i in np.where(mask0)[0]:
         out_x[i] = x
         out_phi[i] = np.eye(6)
