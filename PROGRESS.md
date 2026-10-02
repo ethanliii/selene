@@ -12,7 +12,7 @@
 | 7 Sensor tasking | done | linear-covariance custody engine, greedy log-det scheduler, receding-horizon MILP (HiGHS) with rank-weighted diminishing returns, random/round-robin baselines, custody %/TSLO metrics; POST /api/tasking/schedule ~2 s |
 | 8 Architecture studio | done | 6 candidate platforms, 4 presets, common-random-number Monte Carlo: coverage %, greedy-tasker custody %, revisit, detection latency (documented STM+NIS surrogate); POST /api/architecture/evaluate ~2-10 s. e.g. n_mc=4, horizon 3 d, seed 0: ground only 14.0 % coverage / 53.7 % custody → ground + DRO + L1 halo 75.9 % / 91.6 % |
 | 9 API + demo scenario | done | 6-day scripted story computed by the real engines (burn 30 m/s on 2026-02-25, detected +1.5 h, lost in lunar glare σ 1053 km, DRO observer tasked, regained +1 h, Δv est. +0.07 %/0.11°); 3.7 MB bundle, 145 frames, 33 events (incl. a closest-approach event; L1/L2 'gateway' = neck transit, not proximity), template analyst brief; GET /api/demo/scenario 0.16 s |
-| 10 Frontend | done (Analysis panels pending) | Ops scene layers (families, objects+trails, particle clouds, FOV/exclusion cones), panels, demo driver (mock-first); Coverage page; Architecture Studio page — live wiring to backend pending |
+| 10 Frontend | done | Ops scene layers (families, objects+trails, particle clouds, FOV/exclusion cones), panels, demo driver (mock-first); Coverage page; Architecture Studio page — live wiring to backend pending |
 | 11 Docs & final review | done (see FINAL_REPORT.md for residuals) | README refreshed; adversarial backend review applied (JSON 404s under /api, 400s for bad input, per-request budgets, Z-suffixed timestamps, API contract test); 511 tests |
 
 
