@@ -1,0 +1,1863 @@
+{
+ "generated_utc": "2026-10-02T11:03:55Z",
+ "first_generated_utc": "2026-10-02T10:48:56Z",
+ "source": "JPL Horizons",
+ "api": "https://ssd.jpl.nasa.gov/api/horizons.api",
+ "demo_epoch_utc": "2026-03-01T00:00:00",
+ "window_utc": [
+  "2026-02-15T00:00:00",
+  "2026-03-31T00:00:00"
+ ],
+ "fallback_span_days": 45.0,
+ "center": "Earth (500@399)",
+ "frame": "ICRF",
+ "units": "km, km/s, TDB seconds past J2000",
+ "requests_made_this_run": 0,
+ "requests_made_total": 15,
+ "refresh_history": [
+  {
+   "utc": "2026-10-02T10:48:56Z",
+   "kind": "refresh",
+   "requests": 15,
+   "note": "pre-history index (requests figure is that of the last partial run)"
+  },
+  {
+   "utc": "2026-10-02T11:01:32Z",
+   "kind": "rebuild_from_cache",
+   "requests": 0,
+   "only_ids": null,
+   "n_rebuilt": 40
+  },
+  {
+   "utc": "2026-10-02T11:03:55Z",
+   "kind": "rebuild_from_cache",
+   "requests": 0,
+   "only_ids": null,
+   "n_rebuilt": 40
+  }
+ ],
+ "provenance_note": "The index is a merge of every refresh/rebuild run listed in refresh_history; per-object fetched_utc lives in each <id>.json.",
+ "cislunar_rule": {
+  "max_geocentric_range_km": 2000000.0,
+  "min_apogee_km": 100000.0,
+  "lunar_orbit_max_selenocentric_km": 30000.0,
+  "lunar_halo_max_selenocentric_km": 100000.0,
+  "max_plausible_chord_speed_kms": 12.0
+ },
+ "n_cached": 25,
+ "objects": [
+  {
+   "id": -1176,
+   "name": "CAPSTONE (spacecraft)",
+   "regime": "nrho",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    368618.2,
+    421559.8
+   ],
+   "selenocentric_range_km": [
+    3311.5,
+    71643.0
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "CAPSTONE_merged",
+   "status": "cached",
+   "file": "-1176.json",
+   "size_bytes": 491388,
+   "interp_leave_one_out_max_km": {
+    "hermite": 2.657,
+    "spline": 2.654
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -193,
+   "name": "THEMIS-C (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    364798.3,
+    407274.4
+   ],
+   "selenocentric_range_km": [
+    1821.6,
+    19259.3
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "THEMIS-C_merged",
+   "status": "cached",
+   "file": "-193.json",
+   "size_bytes": 491317,
+   "interp_leave_one_out_max_km": {
+    "hermite": 15.403,
+    "spline": 45.168
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -192,
+   "name": "THEMIS-B (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    359658.3,
+    411650.8
+   ],
+   "selenocentric_range_km": [
+    1835.2,
+    18117.8
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "THEMIS-B_merged",
+   "status": "cached",
+   "file": "-192.json",
+   "size_bytes": 491268,
+   "interp_leave_one_out_max_km": {
+    "hermite": 14.646,
+    "spline": 43.552
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -155,
+   "name": "Danuri (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    366447.6,
+    405410.3
+   ],
+   "selenocentric_range_km": [
+    1789.8,
+    1950.1
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "KPLO_merged",
+   "status": "cached",
+   "file": "-155.json",
+   "size_bytes": 491759,
+   "interp_leave_one_out_max_km": {
+    "hermite": 8.068,
+    "spline": 67.818
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -152,
+   "name": "Chandrayaan-2 (ORBITER) (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    365740.6,
+    405921.9
+   ],
+   "selenocentric_range_km": [
+    1808.1,
+    1874.1
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "chandrayaan-2_orbiter_me",
+   "status": "cached",
+   "file": "-152.json",
+   "size_bytes": 491967,
+   "interp_leave_one_out_max_km": {
+    "hermite": 6.932,
+    "spline": 61.149
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -95,
+   "name": "TESS (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 1057,
+   "step": "1 h",
+   "geocentric_range_km": [
+    121456.0,
+    349731.5
+   ],
+   "selenocentric_range_km": [
+    279778.1,
+    611524.1
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "TESS_merged",
+   "status": "cached",
+   "file": "-95.json",
+   "size_bytes": 83339,
+   "interp_leave_one_out_max_km": {
+    "hermite": 1.986,
+    "spline": 1.994
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -85,
+   "name": "LRO (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 6337,
+   "step": "10 m",
+   "geocentric_range_km": [
+    365050.3,
+    406093.8
+   ],
+   "selenocentric_range_km": [
+    1792.8,
+    1862.2
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "LRO_merged",
+   "status": "cached",
+   "file": "-85.json",
+   "size_bytes": 491755,
+   "interp_leave_one_out_max_km": {
+    "hermite": 7.205,
+    "spline": 69.602
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -9901492,
+   "name": "Luna-25 STAGE (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2024-01-12T18:45:49",
+    "2024-02-26T17:45:49"
+   ],
+   "n_samples": 1080,
+   "step": "1 h",
+   "geocentric_range_km": [
+    24702.8,
+    430139.3
+   ],
+   "selenocentric_range_km": [
+    10412.2,
+    783174.0
+   ],
+   "span_note": "Horizons data ends 2024-02-26 18:47:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "luna-25_stage_s19",
+   "status": "cached",
+   "file": "-9901492.json",
+   "size_bytes": 82641,
+   "interp_leave_one_out_max_km": {
+    "hermite": 32.603,
+    "spline": 137.623
+   },
+   "interp_quality": "coarse",
+   "trimmed_samples": {
+    "inside_earth": 1,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -143846,
+   "name": "Chang'e_4_booster (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2021-04-16T21:34:49",
+    "2021-05-31T21:34:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    111603.5,
+    495378.6
+   ],
+   "selenocentric_range_km": [
+    105307.6,
+    799096.5
+   ],
+   "span_note": "Horizons data ends 2021-05-31 21:36:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "Chang_e_4_booster",
+   "status": "cached",
+   "file": "-143846.json",
+   "size_bytes": 83562,
+   "interp_leave_one_out_max_km": {
+    "hermite": 2.411,
+    "spline": 2.522
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -139459,
+   "name": "Chang'e_3_booster (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2021-04-16T21:34:49",
+    "2021-05-31T21:34:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    161553.0,
+    646461.2
+   ],
+   "selenocentric_range_km": [
+    247335.6,
+    537777.1
+   ],
+   "span_note": "Horizons data ends 2021-05-31 21:36:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "Chang_e_3_booster",
+   "status": "cached",
+   "file": "-139459.json",
+   "size_bytes": 83526,
+   "interp_leave_one_out_max_km": {
+    "hermite": 0.355,
+    "spline": 0.372
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -78000,
+   "name": "Chang'e_5-T1_booster (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2022-01-18T12:32:34",
+    "2022-03-04T11:32:34"
+   ],
+   "n_samples": 1080,
+   "step": "1 h",
+   "geocentric_range_km": [
+    32722.7,
+    695275.0
+   ],
+   "selenocentric_range_km": [
+    7509.6,
+    1026703.1
+   ],
+   "span_note": "Horizons data ends 2022-03-04 12:33:45.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "Chang_e_5-T1_booster_s23",
+   "status": "cached",
+   "file": "-78000.json",
+   "size_bytes": 83064,
+   "interp_leave_one_out_max_km": {
+    "hermite": 94.186,
+    "spline": 260.727
+   },
+   "interp_quality": "coarse",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 1
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -1024,
+   "name": "Artemis II (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2026-04-02T01:57:24",
+    "2026-04-10T23:52:24"
+   ],
+   "n_samples": 2568,
+   "step": "5 m",
+   "geocentric_range_km": [
+    6593.6,
+    413144.2
+   ],
+   "selenocentric_range_km": [
+    8282.7,
+    406432.9
+   ],
+   "span_note": "Horizons data available only 2026-04-02 01:58:32.305 .. 2026-04-10 23:54:22.857 TDB (8.9 d, outside the window); entire available span cached.",
+   "contemporaneous": false,
+   "trajectory_source": "Artemis_II_merged",
+   "status": "cached",
+   "file": "-1024.json",
+   "size_bytes": 203213,
+   "interp_leave_one_out_max_km": {
+    "hermite": 73.397,
+    "spline": 94.355
+   },
+   "interp_quality": "coarse",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -1023,
+   "name": "Artemis 1 (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2022-11-16T08:44:52",
+    "2022-12-11T16:44:52"
+   ],
+   "n_samples": 609,
+   "step": "1 h",
+   "geocentric_range_km": [
+    10812.2,
+    438584.0
+   ],
+   "selenocentric_range_km": [
+    1868.2,
+    410090.5
+   ],
+   "span_note": "Horizons data available only 2022-11-16 08:46:00.332 .. 2022-12-11 17:21:01.800 TDB (25.3 d, outside the window); entire available span cached.",
+   "contemporaneous": false,
+   "trajectory_source": "Artemis-I_ASF",
+   "status": "cached",
+   "file": "-1023.json",
+   "size_bytes": 48753,
+   "interp_leave_one_out_max_km": {
+    "hermite": 1253.906,
+    "spline": 1469.728
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -463,
+   "name": "SMILE (spacecraft)",
+   "regime": "xgeo_heo",
+   "span_utc": [
+    "2026-06-22T00:00:01",
+    "2026-08-06T00:00:01"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    11633.0,
+    127232.2
+   ],
+   "selenocentric_range_km": [
+    301234.4,
+    486459.9
+   ],
+   "span_note": "Horizons data starts 2026-06-22 00:01:09.184 TDB, after the window; cached the first 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "SMILE",
+   "status": "cached",
+   "file": "-463.json",
+   "size_bytes": 81975,
+   "interp_leave_one_out_max_km": {
+    "hermite": 3641.614,
+    "spline": 6765.819
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -240,
+   "name": "SLIM (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2024-01-09T00:59:59",
+    "2024-01-31T23:59:58"
+   ],
+   "n_samples": 552,
+   "step": "1 h",
+   "geocentric_range_km": [
+    360673.1,
+    404238.0
+   ],
+   "selenocentric_range_km": [
+    1743.0,
+    8392.6
+   ],
+   "span_note": "Horizons data ends 2024-02-01 00:01:09.184 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "SLIM_merged",
+   "status": "cached",
+   "file": "-240.json",
+   "size_bytes": 44957,
+   "interp_leave_one_out_max_km": {
+    "hermite": 6040.449,
+    "spline": 6282.374
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": [
+    {
+     "start_utc": "2023-12-17T23:59:59",
+     "end_utc": "2023-12-25T22:59:59",
+     "n_samples": 192,
+     "jump_km": 386347.7,
+     "implied_speed_kms": 107.319,
+     "moon_offset_signature": false
+    },
+    {
+     "start_utc": "2023-12-25T23:59:59",
+     "end_utc": "2024-01-08T23:59:59",
+     "n_samples": 337,
+     "jump_km": 386347.7,
+     "implied_speed_kms": 107.319,
+     "moon_offset_signature": true
+    }
+   ]
+  },
+  {
+   "id": -177,
+   "name": "GRAIL-A (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2012-11-02T22:28:46",
+    "2012-12-17T22:28:46"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    355769.3,
+    407581.9
+   ],
+   "selenocentric_range_km": [
+    1738.2,
+    1774.2
+   ],
+   "span_note": "Horizons data ends 2012-12-17 22:29:54.430 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "GRAIL_MERGED_DE421",
+   "status": "cached",
+   "file": "-177.json",
+   "size_bytes": 84076,
+   "interp_leave_one_out_max_km": {
+    "hermite": 4327.634,
+    "spline": 3528.49
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -169,
+   "name": "Chandrayaan-3P (ORBITER) (spacecraft)",
+   "regime": "lunar_halo",
+   "span_utc": [
+    "2023-09-26T06:59:29",
+    "2023-11-10T06:59:28"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    327860.2,
+    434515.3
+   ],
+   "selenocentric_range_km": [
+    1874.5,
+    65875.9
+   ],
+   "span_note": "Horizons data ends 2023-11-10 07:00:39.182 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "chandrayaan-3_orbiter_me",
+   "status": "cached",
+   "file": "-169.json",
+   "size_bytes": 85037,
+   "interp_leave_one_out_max_km": {
+    "hermite": 3525.104,
+    "spline": 4239.318
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -158,
+   "name": "Chandrayaan-3 (LANDER spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2023-07-23T12:32:44",
+    "2023-09-06T12:32:44"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    6784.1,
+    407689.8
+   ],
+   "selenocentric_range_km": [
+    1737.9,
+    507211.7
+   ],
+   "span_note": "Horizons data ends 2023-09-06 12:33:55.152 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "chandrayaan-3_lander_mer",
+   "status": "cached",
+   "file": "-158.json",
+   "size_bytes": 83675,
+   "interp_leave_one_out_max_km": {
+    "hermite": 8374.201,
+    "spline": 12428.519
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -153,
+   "name": "Chandrayaan-2 (LANDER) (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2019-07-23T20:26:49",
+    "2019-09-06T20:26:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    6877.5,
+    411513.2
+   ],
+   "selenocentric_range_km": [
+    1738.2,
+    516779.1
+   ],
+   "span_note": "Horizons data ends 2019-09-06 20:28:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "chandrayaan-2_lander_mer",
+   "status": "cached",
+   "file": "-153.json",
+   "size_bytes": 80237,
+   "interp_leave_one_out_max_km": {
+    "hermite": 8563.302,
+    "spline": 12794.061
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -101,
+   "name": "EQUULEUS (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2023-11-15T23:58:49",
+    "2023-12-30T23:58:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    195749.8,
+    325314.8
+   ],
+   "selenocentric_range_km": [
+    134488.8,
+    677527.5
+   ],
+   "span_note": "Horizons data ends 2023-12-31 00:00:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "EQUULEUS_merged",
+   "status": "cached",
+   "file": "-101.json",
+   "size_bytes": 83116,
+   "interp_leave_one_out_max_km": {
+    "hermite": 0.007,
+    "spline": 0.066
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -86,
+   "name": "Chandrayaan-1 (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2022-08-16T23:58:49",
+    "2022-09-30T23:58:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    362793.3,
+    406487.3
+   ],
+   "selenocentric_range_km": [
+    1887.9,
+    2002.6
+   ],
+   "span_note": "Horizons data ends 2022-10-01 00:00:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "chandrayaan-1_radar_ext",
+   "status": "cached",
+   "file": "-86.json",
+   "size_bytes": 83122,
+   "interp_leave_one_out_max_km": {
+    "hermite": 3307.58,
+    "spline": 3890.422
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -40,
+   "name": "Clementine (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "1994-03-19T12:59:58",
+    "1994-05-03T12:59:59"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    355130.3,
+    408466.3
+   ],
+   "selenocentric_range_km": [
+    2112.2,
+    5277.3
+   ],
+   "span_note": "Horizons data ends 1994-05-03 13:01:00.185 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "clementine",
+   "status": "cached",
+   "file": "-40.json",
+   "size_bytes": 86477,
+   "interp_leave_one_out_max_km": {
+    "hermite": 1570.306,
+    "spline": 4286.859
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -25,
+   "name": "Lunar Prospector (LP) (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "1998-01-07T03:43:57",
+    "1998-01-19T23:43:57"
+   ],
+   "n_samples": 309,
+   "step": "1 h",
+   "geocentric_range_km": [
+    10568.1,
+    406468.1
+   ],
+   "selenocentric_range_km": [
+    1825.8,
+    365717.1
+   ],
+   "span_note": "Horizons data available only 1998-01-07 03:45:00.000 .. 1998-01-20 00:05:00.000 TDB (12.8 d, outside the window); entire available span cached.",
+   "contemporaneous": false,
+   "trajectory_source": "LP_transfer-loi",
+   "status": "cached",
+   "file": "-25.json",
+   "size_bytes": 24568,
+   "interp_leave_one_out_max_km": {
+    "hermite": 3844.036,
+    "spline": 4710.354
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -18,
+   "name": "LCROSS Shepherd (spacecraft)",
+   "regime": "cislunar_transit",
+   "span_utc": [
+    "2009-08-25T11:35:58",
+    "2009-10-09T10:35:59"
+   ],
+   "n_samples": 1080,
+   "step": "1 h",
+   "geocentric_range_km": [
+    371927.1,
+    570440.8
+   ],
+   "selenocentric_range_km": [
+    7729.7,
+    722445.7
+   ],
+   "span_note": "Horizons data ends 2009-10-09 11:37:06.182 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "LCROSS_merged",
+   "status": "cached",
+   "file": "-18.json",
+   "size_bytes": 85327,
+   "interp_leave_one_out_max_km": {
+    "hermite": 6.807,
+    "spline": 16.884
+   },
+   "interp_quality": "good",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 1
+   },
+   "dropped_segments": []
+  },
+  {
+   "id": -12,
+   "name": "LADEE (spacecraft)",
+   "regime": "lunar_orbit",
+   "span_utc": [
+    "2014-03-04T04:31:59",
+    "2014-04-18T04:31:58"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    363872.2,
+    407154.3
+   ],
+   "selenocentric_range_km": [
+    1739.8,
+    1856.2
+   ],
+   "span_note": "Horizons data ends 2014-04-18 04:33:07.185 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "LADEE_final_merged",
+   "status": "cached",
+   "file": "-12.json",
+   "size_bytes": 85055,
+   "interp_leave_one_out_max_km": {
+    "hermite": 4241.003,
+    "spline": 3622.389
+   },
+   "interp_quality": "samples_only",
+   "trimmed_samples": {
+    "inside_earth": 0,
+    "inside_moon": 0
+   },
+   "dropped_segments": []
+  }
+ ],
+ "not_cached": [
+  {
+   "id": -168540,
+   "name": "SWC-1 (spacecraft)",
+   "regime": "below_xgeo",
+   "span_utc": [
+    "2026-04-02T03:54:34",
+    "2026-04-07T13:54:34"
+   ],
+   "n_samples": 131,
+   "step": "1 h",
+   "geocentric_range_km": [
+    7295.6,
+    76765.1
+   ],
+   "selenocentric_range_km": [
+    328217.5,
+    409536.5
+   ],
+   "span_note": "Horizons data available only 2026-04-02 03:55:43.106 .. 2026-04-07 14:31:09.106 TDB (5.4 d, outside the window); entire available span cached.",
+   "contemporaneous": false,
+   "trajectory_source": "SWC-1",
+   "status": "found_not_cached",
+   "reason": "never beyond 100000 km geocentric (max 76765 km): not an xGEO object",
+   "note": "Designation 2026-069C (same launch as Artemis II); regime classified from data."
+  },
+  {
+   "id": -169792,
+   "name": "LINK (spacecraft)",
+   "regime": "below_xgeo",
+   "span_utc": [
+    "2026-07-03T11:17:28",
+    "2026-08-17T11:17:28"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    6698.7,
+    6767.6
+   ],
+   "selenocentric_range_km": [
+    352575.3,
+    411433.6
+   ],
+   "span_note": "Horizons data starts 2026-07-03 11:18:36.382 TDB, after the window; cached the first 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "LINK",
+   "status": "found_not_cached",
+   "reason": "never beyond 100000 km geocentric (max 6768 km): not an xGEO object",
+   "note": "Designation 2026-152A; regime classified from data."
+  },
+  {
+   "id": -75,
+   "name": "OMOTENASHI (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2023-02-14T23:59:59",
+    "2023-03-31T23:59:58"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    5993819.6,
+    8798770.2
+   ],
+   "selenocentric_range_km": [
+    6364879.6,
+    8422161.5
+   ],
+   "span_note": "Horizons data ends 2023-04-01 00:01:09.185 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "OMOTENASHI_merged",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 8798770 km > 2000000 km): heliocentric / escape trajectory",
+   "note": null
+  },
+  {
+   "id": -125,
+   "name": "ICPS (Spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2023-11-15T23:58:49",
+    "2023-12-30T23:58:49"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    12423576.6,
+    15776163.9
+   ],
+   "selenocentric_range_km": [
+    12248702.1,
+    16021235.3
+   ],
+   "span_note": "Horizons data ends 2023-12-31 00:00:00.000 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "ICPS_merged",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 15776164 km > 2000000 km): heliocentric / escape trajectory",
+   "note": null
+  },
+  {
+   "id": -164,
+   "name": "Lunar Flashlight (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 1057,
+   "step": "1 h",
+   "geocentric_range_km": [
+    160615662.5,
+    167491708.3
+   ],
+   "selenocentric_range_km": [
+    160258710.1,
+    167826778.5
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "trj_lfl_221211-230627_38",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 167491708 km > 2000000 km): heliocentric / escape trajectory",
+   "note": null
+  },
+  {
+   "id": -242,
+   "name": "Lunar Trailblazer (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 1057,
+   "step": "1 h",
+   "geocentric_range_km": [
+    65605512.7,
+    66050818.7
+   ],
+   "selenocentric_range_km": [
+    65335845.9,
+    66352743.8
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "ltb_current",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 66050819 km > 2000000 km): heliocentric / escape trajectory",
+   "note": "Lost after launch 2025-02-27; predicted heliocentric drift only."
+  },
+  {
+   "id": -182,
+   "name": "NEA Scout (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2023-05-16T23:59:58",
+    "2023-06-30T23:59:59"
+   ],
+   "n_samples": 1081,
+   "step": "1 h",
+   "geocentric_range_km": [
+    21800164.5,
+    29679276.8
+   ],
+   "selenocentric_range_km": [
+    22080586.2,
+    29437323.5
+   ],
+   "span_note": "Horizons data ends 2023-07-01 00:01:09.184 TDB, before the window; cached the last 45 days available.",
+   "contemporaneous": false,
+   "trajectory_source": "NEAScout_merged",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 29679277 km > 2000000 km): heliocentric / escape trajectory",
+   "note": null
+  },
+  {
+   "id": -70007,
+   "name": "BioSentinel (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 1057,
+   "step": "1 h",
+   "geocentric_range_km": [
+    83569356.2,
+    87414634.5
+   ],
+   "selenocentric_range_km": [
+    83672166.5,
+    87350783.3
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "BIOS_merged",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 87414634 km > 2000000 km): heliocentric / escape trajectory",
+   "note": "Artemis I secondary; heliocentric."
+  },
+  {
+   "id": -10001001,
+   "name": "Odin (spacecraft)",
+   "regime": "beyond_cislunar",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-02T03:00:00"
+   ],
+   "n_samples": 364,
+   "step": "1 h",
+   "geocentric_range_km": [
+    39285396.2,
+    39385084.0
+   ],
+   "selenocentric_range_km": [
+    38957516.0,
+    39539481.1
+   ],
+   "span_note": "Horizons data ends 2026-03-02 03:28:14.598 TDB; window clipped.",
+   "contemporaneous": true,
+   "trajectory_source": "Odin_current",
+   "status": "found_not_cached",
+   "reason": "outside Earth-Moon/xGEO regime (max geocentric range 39385084 km > 2000000 km): heliocentric / escape trajectory",
+   "note": "Launched 2025-02-27 with IM-2; contact lost."
+  },
+  {
+   "id": -9,
+   "name": "ESCAPADE-Blue (spacecraft)",
+   "regime": "sun_earth_l2",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1999317.0,
+    2338420.6
+   ],
+   "selenocentric_range_km": [
+    1621070.1,
+    2496687.2
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "EscaPADE-Blue_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L2 regime (geocentric range 1999317-2338421 km): beyond Earth-Moon scope; probed for context only",
+   "note": "Loitering near Sun-Earth L2 until the late-2026 Earth flyby."
+  },
+  {
+   "id": -10,
+   "name": "ESCAPADE-Gold (spacecraft)",
+   "regime": "sun_earth_l2",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1987847.2,
+    2272139.4
+   ],
+   "selenocentric_range_km": [
+    1605511.9,
+    2451385.2
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "EscaPADE-Gold_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L2 regime (geocentric range 1987847-2272139 km): beyond Earth-Moon scope; probed for context only",
+   "note": null
+  },
+  {
+   "id": -170,
+   "name": "James Webb Space Telescope (spacecraft)",
+   "regime": "sun_earth_l2",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1199576.4,
+    1409140.6
+   ],
+   "selenocentric_range_km": [
+    893287.8,
+    1803736.6
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "JWST_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L2 regime (geocentric range 1199576-1409141 km): beyond Earth-Moon scope; probed for context only",
+   "note": null
+  },
+  {
+   "id": -43,
+   "name": "IMAP (spacecraft)",
+   "regime": "sun_earth_l1",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1444930.8,
+    1558402.2
+   ],
+   "selenocentric_range_km": [
+    1077196.6,
+    1910354.9
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "IMAP_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L1 regime (geocentric range 1444931-1558402 km): beyond Earth-Moon scope; probed for context only",
+   "note": null
+  },
+  {
+   "id": -231,
+   "name": "SWFO-L1 (spacecraft)",
+   "regime": "sun_earth_l1",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1453653.3,
+    1577438.6
+   ],
+   "selenocentric_range_km": [
+    1091310.7,
+    1928150.2
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "SWFO-L1_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L1 regime (geocentric range 1453653-1577439 km): beyond Earth-Moon scope; probed for context only",
+   "note": null
+  },
+  {
+   "id": -171,
+   "name": "Carruthers Geocorona Observatory (spacecraft)",
+   "regime": "sun_earth_l1",
+   "span_utc": [
+    "2026-02-15T00:00:00",
+    "2026-03-30T23:59:59"
+   ],
+   "n_samples": 45,
+   "step": "1 d",
+   "geocentric_range_km": [
+    1506664.6,
+    1680223.0
+   ],
+   "selenocentric_range_km": [
+    1169365.7,
+    2023655.1
+   ],
+   "span_note": "covers the discovery window",
+   "contemporaneous": true,
+   "trajectory_source": "CGO_merged",
+   "status": "found_not_cached",
+   "reason": "Sun-Earth L1 regime (geocentric range 1506665-1680223 km): beyond Earth-Moon scope; probed for context only",
+   "note": null
+  }
+ ],
+ "name_searches": [
+  {
+   "query": "GATEWAY",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Not yet launched (Gateway PPE/HALO); no Horizons record."
+  },
+  {
+   "query": "Queqiao",
+   "status": "unknown",
+   "matches": [],
+   "reason": "CNSA relay satellites (Queqiao-1 at EM-L2 halo, Queqiao-2 in lunar frozen orbit) are not published by Horizons."
+  },
+  {
+   "query": "Danuri",
+   "status": "single",
+   "matches": [
+    {
+     "id": -155,
+     "name": "Revised: Sep 30, 2026        Danuri / KPLO Spacecraft (Moon)             -155"
+    }
+   ]
+  },
+  {
+   "query": "LADEE",
+   "status": "single",
+   "matches": [
+    {
+     "id": -12,
+     "name": "Revised: Jun 02, 2014              LADEE (spacecraft)                      -12"
+    }
+   ]
+  },
+  {
+   "query": "ARTEMIS",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": -192,
+     "name": "THEMIS-B (spacecraft)",
+     "other": "2007-004B    ARTEMIS-P1"
+    },
+    {
+     "id": -193,
+     "name": "THEMIS-C (spacecraft)",
+     "other": "2007-004C    ARTEMIS-P2"
+    },
+    {
+     "id": -1023,
+     "name": "Artemis 1 (spacecraft)",
+     "other": "2022-156A    Orion EM-1"
+    },
+    {
+     "id": -1024,
+     "name": "Artemis II (spacecraft)",
+     "other": "2026-069A    Integrity Orion EM-2"
+    }
+   ]
+  },
+  {
+   "query": "Lunar Pathfinder",
+   "status": "unknown",
+   "matches": [],
+   "reason": "ESA/SSTL relay not in Horizons."
+  },
+  {
+   "query": "Chang",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": -78000,
+     "name": "Chang'e_5-T1_booster (spacecraft)",
+     "other": "2014-065B    WE0913A"
+    },
+    {
+     "id": -139459,
+     "name": "Chang'e_3_booster (spacecraft)",
+     "other": "2013-070B"
+    },
+    {
+     "id": -143846,
+     "name": "Chang'e_4_booster (spacecraft)",
+     "other": "2018-103B"
+    }
+   ]
+  },
+  {
+   "query": "Hakuto",
+   "status": "unknown",
+   "matches": [],
+   "reason": "ispace HAKUTO-R M1 (2023) / M2 Resilience (2025) landers crashed; never in Horizons."
+  },
+  {
+   "query": "Peregrine",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Astrobotic Peregrine (2024) re-entered; not in Horizons."
+  },
+  {
+   "query": "Odysseus",
+   "status": "small_body",
+   "matches": [],
+   "detail": "JPL/HORIZONS               1143 Odysseus (1930 BH)         2026-Oct-02 03:48:21",
+   "reason": "Horizons string match resolves to asteroid (1143) Odysseus, not the IM-1 lander."
+  },
+  {
+   "query": "Nova-C",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Intuitive Machines IM-1 Odysseus (2024) / IM-2 Athena (2025) ended on the surface; not in Horizons."
+  },
+  {
+   "query": "Athena",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Not in Horizons (IM-2 lander ended 2025-03)."
+  },
+  {
+   "query": "Blue Ghost",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Firefly Blue Ghost M1 (landed 2025-03-02, ended 2025-03-16) not in Horizons."
+  },
+  {
+   "query": "Trailblazer",
+   "status": "single",
+   "matches": [
+    {
+     "id": -242,
+     "name": "Revised: Sep 10, 2025    Lunar Trailblazer (spacecraft) / (Sun)           -242"
+    }
+   ]
+  },
+  {
+   "query": "LunaH",
+   "status": "unknown",
+   "matches": [],
+   "reason": "LunaH-Map (Artemis I CubeSat) not in Horizons."
+  },
+  {
+   "query": "EQUULEUS",
+   "status": "single",
+   "matches": [
+    {
+     "id": -101,
+     "name": "Revised: Sep 05, 2023         EQUULEUS Spacecraft / (Moon)                -101"
+    }
+   ]
+  },
+  {
+   "query": "OMOTENASHI",
+   "status": "single",
+   "matches": [
+    {
+     "id": -75,
+     "name": "Revised: Dec 07, 2022      OMOTENASHI / Spacecraft (Moon)                 -75"
+    }
+   ]
+  },
+  {
+   "query": "ICPS",
+   "status": "single",
+   "matches": [
+    {
+     "id": -125,
+     "name": "Revised: Feb 15, 2023     ICPS (2022-156B) / Spacecraft (Sun)             -125"
+    }
+   ]
+  },
+  {
+   "query": "Orion",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": -1023,
+     "name": "Artemis 1 (spacecraft)",
+     "other": "2022-156A    Orion EM-1"
+    },
+    {
+     "id": -1024,
+     "name": "Artemis II (spacecraft)",
+     "other": "2026-069A    Integrity Orion EM-2"
+    }
+   ]
+  },
+  {
+   "query": "Artemis II",
+   "status": "single",
+   "matches": [
+    {
+     "id": -1024,
+     "name": "Revised: Apr 20, 2026        Artemis II / Spacecraft (Earth)             -1024"
+    }
+   ]
+  },
+  {
+   "query": "Chandrayaan",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": -86,
+     "name": "Chandrayaan-1 (spacecraft)",
+     "other": "2008-052A    CH1 CH-1"
+    },
+    {
+     "id": -152,
+     "name": "Chandrayaan-2 (ORBITER) (spacecraft2019-042A",
+     "other": "CH2 CH-2"
+    },
+    {
+     "id": -153,
+     "name": "Chandrayaan-2 (LANDER) (spacecraft)2019-042A",
+     "other": "CH2 CH-2"
+    },
+    {
+     "id": -158,
+     "name": "Chandrayaan-3 (LANDER spacecraft)",
+     "other": "2023-098A    CH-3 CH3 Vikram"
+    },
+    {
+     "id": -169,
+     "name": "Chandrayaan-3P (ORBITER) (spacecraf2023-098A",
+     "other": "CH-3P CH3P"
+    }
+   ]
+  },
+  {
+   "query": "SLIM",
+   "status": "single",
+   "matches": [
+    {
+     "id": -240,
+     "name": "Revised: Jan 19, 2024            SLIM Spacecraft / (Moon)                 -240"
+    }
+   ]
+  },
+  {
+   "query": "Lunar Flashlight",
+   "status": "single",
+   "matches": [
+    {
+     "id": -164,
+     "name": "Revised: Jun 27, 2023      Lunar Flashlight / Spacecraft (Moon)           -164"
+    }
+   ]
+  },
+  {
+   "query": "TESS",
+   "status": "single",
+   "matches": [
+    {
+     "id": -95,
+     "name": "Revised: Sep 30, 2026              TESS / (Earth)                          -95"
+    }
+   ]
+  },
+  {
+   "query": "IM-2",
+   "status": "unknown",
+   "matches": [],
+   "reason": "Not in Horizons."
+  },
+  {
+   "query": "Griffin",
+   "status": "small_body",
+   "matches": [],
+   "detail": "JPL/HORIZONS               4995 Griffin (1984 QR)          2026-Oct-02 03:48:37",
+   "reason": "Horizons string match resolves to asteroid (4995) Griffin; Astrobotic Griffin lander not in Horizons."
+  },
+  {
+   "query": "Resilience",
+   "status": "unknown",
+   "matches": [],
+   "reason": "ispace M2 Resilience not in Horizons (crashed 2025-06-05)."
+  },
+  {
+   "query": "THEMIS",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": 518,
+     "name": "Themisto",
+     "other": "S1975_J1     JXVIII S2000_J1"
+    },
+    {
+     "id": -192,
+     "name": "THEMIS-B (spacecraft)",
+     "other": "2007-004B    ARTEMIS-P1"
+    },
+    {
+     "id": -193,
+     "name": "THEMIS-C (spacecraft)",
+     "other": "2007-004C    ARTEMIS-P2"
+    }
+   ]
+  },
+  {
+   "query": "Luna",
+   "status": "multiple",
+   "matches": [
+    {
+     "id": 301,
+     "name": "Moon",
+     "other": "Luna"
+    },
+    {
+     "id": -25,
+     "name": "Lunar Prospector (LP) (spacecraft) 1998-001A",
+     "other": ""
+    },
+    {
+     "id": -164,
+     "name": "Lunar Flashlight (spacecraft)",
+     "other": "2022-168B    LFL"
+    },
+    {
+     "id": -242,
+     "name": "Lunar Trailblazer (spacecraft)",
+     "other": "2025-038C    LTB"
+    },
+    {
+     "id": -9901492,
+     "name": "Luna-25 STAGE (spacecraft)",
+     "other": ""
+    }
+   ]
+  },
+  {
+   "query": "SMILE",
+   "status": "single",
+   "matches": [
+    {
+     "id": -463,
+     "name": "Revised: Aug 28, 2026        SMILE Spacecraft (2026-109A) / Earth         -463"
+    }
+   ]
+  }
+ ],
+ "spacecraft_catalogue": {
+  "count": 254,
+  "note": "COMMAND='SPACECRAFT*' listing; full list in data/cache/horizons/spacecraft_list.json",
+  "sample": [
+   {
+    "id": -9,
+    "name": "ESCAPADE-Blue (spacecraft)",
+    "other": "2025-260A"
+   },
+   {
+    "id": -10,
+    "name": "ESCAPADE-Gold (spacecraft)",
+    "other": "2025-260B"
+   },
+   {
+    "id": -12,
+    "name": "LADEE (spacecraft)",
+    "other": "2013-047A"
+   },
+   {
+    "id": -18,
+    "name": "LCROSS Shepherd (spacecraft)",
+    "other": "2009-031B    SSC"
+   },
+   {
+    "id": -25,
+    "name": "Lunar Prospector (LP) (spacecraft) 1998-001A",
+    "other": ""
+   },
+   {
+    "id": -40,
+    "name": "Clementine (spacecraft)",
+    "other": "1994-004A    DSPSE"
+   },
+   {
+    "id": -43,
+    "name": "IMAP (spacecraft)",
+    "other": ""
+   },
+   {
+    "id": -75,
+    "name": "OMOTENASHI (spacecraft)",
+    "other": "2022-156D"
+   },
+   {
+    "id": -85,
+    "name": "LRO (spacecraft)",
+    "other": "2009-031A"
+   },
+   {
+    "id": -86,
+    "name": "Chandrayaan-1 (spacecraft)",
+    "other": "2008-052A    CH1 CH-1"
+   },
+   {
+    "id": -95,
+    "name": "TESS (spacecraft)",
+    "other": "2018-038A"
+   },
+   {
+    "id": -101,
+    "name": "EQUULEUS (spacecraft)",
+    "other": "2022-156E"
+   },
+   {
+    "id": -125,
+    "name": "ICPS (Spacecraft)",
+    "other": "2022-156B"
+   },
+   {
+    "id": -152,
+    "name": "Chandrayaan-2 (ORBITER) (spacecraft2019-042A",
+    "other": "CH2 CH-2"
+   },
+   {
+    "id": -153,
+    "name": "Chandrayaan-2 (LANDER) (spacecraft)2019-042A",
+    "other": "CH2 CH-2"
+   },
+   {
+    "id": -155,
+    "name": "Danuri (spacecraft)",
+    "other": "2022-094A    KPLO"
+   },
+   {
+    "id": -158,
+    "name": "Chandrayaan-3 (LANDER spacecraft)",
+    "other": "2023-098A    CH-3 CH3 Vikram"
+   },
+   {
+    "id": -164,
+    "name": "Lunar Flashlight (spacecraft)",
+    "other": "2022-168B    LFL"
+   },
+   {
+    "id": -169,
+    "name": "Chandrayaan-3P (ORBITER) (spacecraf2023-098A",
+    "other": "CH-3P CH3P"
+   },
+   {
+    "id": -170,
+    "name": "James Webb Space Telescope (spacecr2021-130A",
+    "other": "JWST"
+   },
+   {
+    "id": -171,
+    "name": "Carruthers Geocorona Observatory (s2025-215C",
+    "other": "CGO"
+   },
+   {
+    "id": -177,
+    "name": "GRAIL-A (spacecraft)",
+    "other": "2011-046A    Ebb"
+   },
+   {
+    "id": -182,
+    "name": "NEA Scout (spacecraft)",
+    "other": "2022-156H"
+   },
+   {
+    "id": -192,
+    "name": "THEMIS-B (spacecraft)",
+    "other": "2007-004B    ARTEMIS-P1"
+   },
+   {
+    "id": -193,
+    "name": "THEMIS-C (spacecraft)",
+    "other": "2007-004C    ARTEMIS-P2"
+   },
+   {
+    "id": -231,
+    "name": "SWFO-L1 (spacecraft)",
+    "other": "2025-215B    SOLAR-1"
+   },
+   {
+    "id": -240,
+    "name": "SLIM (spacecraft)",
+    "other": "2023-137D"
+   },
+   {
+    "id": -242,
+    "name": "Lunar Trailblazer (spacecraft)",
+    "other": "2025-038C    LTB"
+   },
+   {
+    "id": -1023,
+    "name": "Artemis 1 (spacecraft)",
+    "other": "2022-156A    Orion EM-1"
+   },
+   {
+    "id": -1024,
+    "name": "Artemis II (spacecraft)",
+    "other": "2026-069A    Integrity Orion EM-2"
+   },
+   {
+    "id": -1176,
+    "name": "CAPSTONE (spacecraft)",
+    "other": "2022-070A"
+   },
+   {
+    "id": -70007,
+    "name": "BioSentinel (spacecraft)",
+    "other": "2022-156F    BIOS"
+   },
+   {
+    "id": -78000,
+    "name": "Chang'e_5-T1_booster (spacecraft)",
+    "other": "2014-065B    WE0913A"
+   },
+   {
+    "id": -139459,
+    "name": "Chang'e_3_booster (spacecraft)",
+    "other": "2013-070B"
+   },
+   {
+    "id": -143846,
+    "name": "Chang'e_4_booster (spacecraft)",
+    "other": "2018-103B"
+   },
+   {
+    "id": -168540,
+    "name": "SWC-1 (spacecraft)",
+    "other": "2026-069C"
+   },
+   {
+    "id": -463,
+    "name": "SMILE (spacecraft)",
+    "other": "2026-109A"
+   },
+   {
+    "id": -169792,
+    "name": "LINK (spacecraft)",
+    "other": "2026-152A"
+   },
+   {
+    "id": -10001001,
+    "name": "Odin (spacecraft)",
+    "other": "2025-038D"
+   },
+   {
+    "id": -9901492,
+    "name": "Luna-25 STAGE (spacecraft)",
+    "other": ""
+   }
+  ]
+ }
+}

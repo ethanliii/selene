@@ -10,3 +10,7 @@ One line per decision, newest at the bottom. Format: `date — decision — rati
 - 2026-10-02 — GM values read from `gm_de440.tpc` with identical literal fallbacks; CR3BP μ derived from them. — One source of truth between CR3BP and ephemeris models.
 - 2026-10-02 — Demo reference epoch fixed at 2026-03-01T00:00:00 UTC. — Reproducible offline results; within DE440s span.
 - 2026-10-02 — Default branch `main`; repo pushed to GitHub under the authenticated account. — User asked for everything on GitHub.
+- 2026-10-02 — Rotating-frame angular velocity (incl. out-of-plane precession term) derived kinematically from DE440s Moon velocity finite differences rather than a force model. — Makes velocity transform the exact time-derivative of the position transform (6e-11 nd residual vs 2.5e-7 model-based).
+- 2026-10-02 — Ephemeris force model = point-mass Earth+Moon+Sun + cannonball SRP w/ cylindrical shadows; no J2/lunar gravity field. — Adequate for xGEO custody demo; documented limitation.
+- 2026-10-02 — Frontend stack pinned to React 18.3 + R3F 8 + drei 9 + three 0.170. — Known-compatible set; build verified.
+- 2026-10-02 — Horizons SLIM (-240) merged file had Moon-centred segments chained as geocentric; cache loader splits at implausible-speed discontinuities and keeps the longest consistent segment. — Data hygiene without hand-editing JPL output.
