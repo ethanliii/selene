@@ -6,18 +6,20 @@
  * rows) rather than mounting a second useScenarioFrame(): it needs none of the trail rebuilding that hook does.
  * Custody thresholds are the scenario's own (meta.custody_km / lost_km, see demo/normalize.ts), never a UI constant.
  */
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 import type { DemoFrame } from '../api/types';
 import { beatOfEvent, sensorName, sensorShort } from '../demo/headline';
 import { frameIndexAt } from '../demo/useScenarioFrame';
 import { fmtAge, useSelene, type DockTab } from '../store/useSelene';
+import { AnalysisPanel } from './analysis/AnalysisPanel';
 import { AnalystBrief } from './AnalystBrief';
 import { EventsFeed } from './EventsFeed';
 import { ObjectPanel } from './ObjectPanel';
 
-const TABS: { id: DockTab; label: string }[] = [
+const TABS: { id: DockTab; label: string; title?: string }[] = [
   { id: 'object', label: 'Object' },
   { id: 'events', label: 'Events' },
+  { id: 'analysis', label: 'Analysis', title: 'Run the OD, maneuver-detection, reachability and tasking engines on the selected object (live backend)' },
   { id: 'brief', label: 'Brief' },
 ];
 
@@ -53,13 +55,16 @@ function KpiStrip() {
   const selected = useSelene((s) => s.selectedObjectId);
   const events = useSelene((s) => s.events);
   // Throttled cursor (≈5 Hz while playing) so the strip does not re-render every animation frame.
+  // Throttled cursor for the "since obs" age (≈5 Hz at full speed, capped at 5 sim-minutes so the crawl during
+  // narration — 1/40 speed — still refreshes every few seconds). The FRAME is picked from the EXACT cursor below,
+  // so custody / σ never lag a frame behind the badges, caption and ribbon at a frame boundary.
   const tSec = useSelene((s) => {
-    const q = s.playing ? Math.max(1, s.speed * 0.2) : 1;
+    const q = s.playing ? Math.min(300, Math.max(1, s.speed * 0.2)) : 1;
     return Math.min(s.t1Sec, Math.floor(s.tSec / q) * q);
   });
+  const idx = useSelene((s) => (s.scenario ? frameIndexAt(s.scenario.frames, s.tSec) : -1));
   if (!scenario) return null;
   const frames = scenario.frames;
-  const idx = frameIndexAt(frames, tSec);
   const frame = idx >= 0 ? frames[idx] : null;
   const objects = frame?.objects ?? [];
   const sensors = frame?.sensors ?? [];
@@ -73,7 +78,7 @@ function KpiStrip() {
   const sigmaSev = sigma === undefined ? 'muted' : ck && lk ? (sigma >= lk ? 'alert' : sigma >= ck ? 'warn' : 'ok') : sev;
   const sigmaBand = sigma === undefined ? '' : ck && lk ? (sigma >= lk ? `lost ≥ ${fmtKm(lk)} km` : sigma >= ck ? `degraded ${fmtKm(ck)}–${fmtKm(lk)} km` : `held < ${fmtKm(ck)} km`) : '√tr P_pos';
   const last = id ? lastObservation(frames, idx, id, events, tSec) : null;
-  const lastAge = last ? tSec - last.t : NaN;
+  const lastAge = last ? Math.max(0, tSec - last.t) : NaN;
   const tasked = sensors.filter((s) => s.target_id === id && (s.active || s.target_id));
   const lastTask = [...events].reverse().find((e) => beatOfEvent(e) === 'tasked' && e.t <= tSec);
   const recentlyTasked = lastTask ? tSec - lastTask.t < 2 * 3600 : false;
@@ -115,6 +120,12 @@ export function Dock() {
   const source = useSelene((s) => s.selectSource);
   const finished = useSelene((s) => s.scenarioFinished);
   const briefReady = useSelene((s) => s.brief.length > 0);
+  const body = useRef<HTMLDivElement>(null);
+  // Each tab opens at its top: without this the dock body keeps the previous tab's scroll offset, and the Brief
+  // (switched in by the demo driver at brief_ready / end of story) would open mid-glossary instead of at the BLUF.
+  useLayoutEffect(() => {
+    if (body.current) body.current.scrollTop = 0;
+  }, [tab]);
   // A USER selection in the scene brings the Object tab forward; the demo driver's automatic selections do not
   // (the scripted story keeps the Events feed in front and surfaces events as toasts).
   useEffect(() => {
@@ -125,15 +136,16 @@ export function Dock() {
       <KpiStrip />
       <div className="tabs">
         {TABS.map((t) => (
-          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)} title={t.title}>
             {t.label}
             {t.id === 'brief' && briefReady && finished && <span className="dot" />}
           </button>
         ))}
       </div>
-      <div className="dock-body">
+      <div className="dock-body" ref={body}>
         {tab === 'object' && <ObjectPanel />}
         {tab === 'events' && <EventsFeed />}
+        {tab === 'analysis' && <AnalysisPanel />}
         {tab === 'brief' && <AnalystBrief />}
       </div>
     </>

@@ -710,3 +710,17 @@
 .studio .tag.live-src {
   font-size: 12px;
 }
+
+/* backend method notes (architecture explainer) */
+.method-notes {
+  margin: 6px 0 10px;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.method-notes li {
+  margin-bottom: 4px;
+}
+.method-line {
+  word-break: break-word;
+}

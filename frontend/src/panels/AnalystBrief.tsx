@@ -151,7 +151,9 @@ export function AnalystBrief({ text }: { text?: string }) {
   // Boolean selector: re-renders only when the brief is released/withdrawn, not on every tick.
   const released = useSelene((s) => !s.scenario || s.scenarioFinished || s.tSec >= briefReleaseTime(s.events, s.t1Sec));
   const releaseT = useSelene((s) => briefReleaseTime(s.events, s.t1Sec));
-  const live = useEndpointStatus().demo === 'live';
+  const endpointLive = useEndpointStatus().demo === 'live';
+  // The bundle's own provenance tag wins; the endpoint registry is the fallback for a scenario loaded elsewhere.
+  const live = scenario?.meta.source ? scenario.meta.source === 'backend' : endpointLive;
   const src = text ?? storeBrief;
   const blocks = useMemo(() => parseBrief(src), [src]);
   const generated = scenario ? (scenario.meta.brief_generated_utc ? new Date(scenario.meta.brief_generated_utc) : new Date(Date.parse(scenario.meta.t0_utc) + scenario.meta.duration_s * 1000)) : null;

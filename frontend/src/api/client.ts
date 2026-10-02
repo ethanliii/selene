@@ -16,8 +16,20 @@
 import { useSyncExternalStore } from 'react';
 import * as mock from './mock';
 import type {
-  ArchitectureEvaluateRequest,
-  ArchitectureEvaluateResponse,
+  ArchitecturePresets,
+  ManeuverDetectRequest,
+  ManeuverDetectResponse,
+  OdPresets,
+  OdRunRequest,
+  OdRunResponse,
+  ReachRegionsResponse,
+  ReachRequest,
+  ReachResponse,
+  TaskingPresets,
+  TaskingRequest,
+  TaskingResponse,
+} from './analysisTypes';
+import type {
   CatalogMeta,
   CatalogObject,
   CatalogResponse,
@@ -27,17 +39,9 @@ import type {
   DemoScenario,
   EphemerisBodies,
   Health,
-  ManeuverDetectRequest,
-  ManeuverDetectResponse,
-  OdRequest,
-  OdResponse,
   OrbitFamilies,
   OrbitRecord,
-  ReachabilityRequest,
-  ReachabilityResponse,
   Sensors,
-  TaskingRequest,
-  TaskingResponse,
   TrajectoryFrame,
   TrajectoryResponse,
   VisibilityResponse,
@@ -49,7 +53,12 @@ export const API_BASE = '/api';
 export type BackendStatus = 'unknown' | 'online' | 'partial' | 'offline';
 
 export class ApiError extends Error {
-  constructor(public status: number, public path: string, public body: string) {
+  /**
+   * `unreachable` is true when no backend answered at all: a network failure, a 502/503/504 gateway answer, or
+   * the Vite dev proxy's empty-body 500 when uvicorn is down. Callers with an EXPLICIT offline fallback (the demo
+   * scenario) key on this flag, never on the status alone (the dev proxy says 500, not 502).
+   */
+  constructor(public status: number, public path: string, public body: string, public unreachable = false) {
     super(`API ${status} ${path}: ${body.slice(0, 200)}`);
     this.name = 'ApiError';
   }
@@ -98,6 +107,11 @@ function setEndpoint(name: EndpointName, st: EndpointState) {
 }
 export function getEndpointStatus(): EndpointStatus {
   return endpointStatus;
+}
+/** For callers that fetch outside this client (the studio pages): record a successful live fetch of a route. */
+export function markEndpointLive(name: EndpointName): void {
+  setStatus('online');
+  setEndpoint(name, 'live');
 }
 export function useEndpointStatus(): EndpointStatus {
   return useSyncExternalStore(
@@ -211,6 +225,52 @@ const get = <T,>(name: EndpointName, path: string, fallback: () => T) => request
 const post = <T,>(name: EndpointName, path: string, body: unknown, fallback: () => T) =>
   request<T>(name, path, { method: 'POST', body: JSON.stringify(body) }, fallback);
 
+/**
+ * Live-only request: NEVER falls back to the browser mock. A network failure marks the session offline and the
+ * endpoint 'mock' (so the data-sources chip stays honest) but the error is thrown to the caller, which shows it
+ * inline. Used by the analysis panels and the demo bundle: analysis results are either the backend's or absent.
+ */
+async function requestLive<T>(name: EndpointName, path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(API_BASE + path, {
+      ...init,
+      headers: { Accept: 'application/json', ...(init?.body ? { 'Content-Type': 'application/json' } : {}), ...init?.headers },
+    });
+  } catch (err) {
+    if (init?.signal?.aborted) throw err;
+    setStatus('offline');
+    setEndpoint(name, 'mock');
+    throw new ApiError(0, path, `backend unreachable (${err instanceof Error ? err.message : String(err)})`, true);
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    const gateway = res.status === 502 || res.status === 503 || res.status === 504 || (res.status === 500 && text.trim() === '');
+    if (gateway) {
+      setStatus('offline');
+      setEndpoint(name, 'mock');
+      throw new ApiError(res.status, path, 'backend unreachable (gateway error)', true);
+    }
+    // A FastAPI generic 404 (route missing on a stale backend) is thrown like any other error and shown inline;
+    // the endpoint is NOT marked 'mock' (nothing mock is rendered), so the data-sources chip stays truthful.
+    // FastAPI puts the message in {"detail": ...}; surface it verbatim (pydantic 422 details are a list).
+    let detail = text;
+    try {
+      const j = JSON.parse(text) as { detail?: unknown };
+      if (typeof j.detail === 'string') detail = j.detail;
+      else if (Array.isArray(j.detail)) detail = j.detail.map((d) => (typeof d === 'object' && d && 'msg' in d ? `${(d as { loc?: unknown[] }).loc?.slice(1).join('.') ?? ''}: ${(d as { msg: string }).msg}` : JSON.stringify(d))).join('; ');
+    } catch {
+      /* not JSON */
+    }
+    throw new ApiError(res.status, path, detail);
+  }
+  setStatus('online');
+  setEndpoint(name, 'live');
+  return (await res.json()) as T;
+}
+const getLive = <T,>(name: EndpointName, path: string, signal?: AbortSignal) => requestLive<T>(name, path, signal ? { signal } : undefined);
+const postLive = <T,>(name: EndpointName, path: string, body: unknown, signal?: AbortSignal) => requestLive<T>(name, path, { method: 'POST', body: JSON.stringify(body), signal });
+
 function qs(params: Record<string, string | number | undefined>): string {
   const u = new URLSearchParams();
   for (const [k, v] of Object.entries(params)) if (v !== undefined) u.set(k, String(v));
@@ -271,17 +331,27 @@ export const api = {
 
   coveragePresets: () => get<CoveragePresets>('coverage', '/coverage/presets', () => ({}) as CoveragePresets),
 
-  odRun: (req: OdRequest) => post<OdResponse>('OD', '/od/run', req, () => mock.mockOd()),
+  // ---- analysis routes: LIVE ONLY (errors are thrown and shown inline; nothing is ever mocked) ----
+  odPresets: () => getLive<OdPresets>('OD', '/od/presets'),
+  odRun: (req: OdRunRequest, signal?: AbortSignal) => postLive<OdRunResponse>('OD', '/od/run', req, signal),
 
-  maneuverDetect: (req: ManeuverDetectRequest) => post<ManeuverDetectResponse>('maneuver', '/maneuver/detect', req, () => mock.mockManeuver),
+  maneuverDetect: (req: ManeuverDetectRequest, signal?: AbortSignal) => postLive<ManeuverDetectResponse>('maneuver', '/maneuver/detect', req, signal),
 
-  reachability: (req: ReachabilityRequest) => post<ReachabilityResponse>('reachability', '/reachability', req, () => mock.mockReachability(req)),
+  reachability: (req: ReachRequest, signal?: AbortSignal) => postLive<ReachResponse>('reachability', '/reachability', req, signal),
+  reachabilityRegions: () => getLive<ReachRegionsResponse>('reachability', '/reachability/regions'),
 
-  taskingSchedule: (req: TaskingRequest) => post<TaskingResponse>('tasking', '/tasking/schedule', req, () => mock.mockTasking(req)),
+  taskingPresets: () => getLive<TaskingPresets>('tasking', '/tasking/presets'),
+  taskingSchedule: (req: TaskingRequest, signal?: AbortSignal) => postLive<TaskingResponse>('tasking', '/tasking/schedule', req, signal),
 
-  architectureEvaluate: (req: ArchitectureEvaluateRequest) => post<ArchitectureEvaluateResponse>('architecture', '/architecture/evaluate', req, () => mock.mockArchitecture(req)),
+  architecturePresets: () => getLive<ArchitecturePresets>('architecture', '/architecture/presets'),
 
-  demoScenario: () => get<DemoScenario>('demo', '/demo/scenario', () => mock.mockDemo()),
+  /** The precomputed scenario bundle. LIVE ONLY: the demo driver decides explicitly whether to fall back. */
+  demoScenario: () => getLive<DemoScenario>('demo', '/demo/scenario'),
+  /** The browser-side mock story (CR3BP in the browser). Only the demo driver calls this, and labels the result. */
+  demoScenarioMock: (): DemoScenario => {
+    setEndpoint('demo', 'mock');
+    return mock.mockDemo();
+  },
 };
 
 export type Api = typeof api;

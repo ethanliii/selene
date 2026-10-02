@@ -22,6 +22,7 @@ import { trackEval } from '../lib/tracks';
 import { MOON_ROT } from '../scene/constants';
 import { cursorDate, fmtAge, fmtElapsed, fmtUtc, useSelene } from '../store/useSelene';
 import { Icon } from './icons';
+import { ScenarioMetrics } from './ScenarioMetrics';
 import { SigmaSparkline, type SigmaPoint } from './SigmaSparkline';
 
 function Field({ k, v, title, nocase }: { k: string; v: ReactNode; title?: string; nocase?: boolean }) {
@@ -137,7 +138,7 @@ export function ObjectPanel() {
   // and its Recharts sparkline re-render ≈5×/s while playing instead of on every animation frame.
   // When paused / scrubbing the exact cursor is used, so the 'State at cursor' epoch matches the timeline.
   const tSec = useSelene((s) => {
-    const q = s.playing ? Math.max(1, s.speed * 0.2) : 1;
+    const q = s.playing ? Math.min(300, Math.max(1, s.speed * 0.2)) : 1;
     return Math.min(s.t1Sec, Math.floor(s.tSec / q) * q);
   });
   const t0Iso = useSelene((s) => s.t0Iso);
@@ -167,7 +168,7 @@ export function ObjectPanel() {
   const custody = live?.custody ?? 'unknown';
   const custodyTag = custody === 'held' ? 'ok' : custody === 'degraded' ? 'warn' : custody === 'lost' ? 'alert' : 'muted';
   const custodyLabel = custody === 'held' ? 'CUSTODY HELD' : custody === 'degraded' ? 'CUSTODY DEGRADED' : custody === 'lost' ? 'CUSTODY LOST' : 'CUSTODY NOT EVALUATED';
-  const custodyTitle = custody === 'unknown' ? 'No orbit determination or tasking has evaluated this object (OD/tasking endpoints pending); custody is not measured in the idle catalog view.' : `Custody ${custody} (scenario estimate from the uncertainty cloud)`;
+  const custodyTitle = custody === 'unknown' ? 'No orbit determination or tasking has evaluated this object in the idle catalog view; run OD or tasking in the Analysis tab, or play the scenario.' : `Custody ${custody} (scenario estimate from the uncertainty cloud)`;
   const myEvents = events.filter((e) => e.object_id === id && e.t <= tSec);
   const observations = myEvents.filter((e) => e.kind === 'observation');
   const lastObs = observations[observations.length - 1];
@@ -257,6 +258,7 @@ export function ObjectPanel() {
         </>
       )}
       {sigmaSeries.length > 1 && <SigmaSparkline data={sigmaSeries} cursorH={tSec / 3600} />}
+      {scenario && id === scenario.meta.protagonist_id && <ScenarioMetrics />}
 
       {isReal ? (
         <>

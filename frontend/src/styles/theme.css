@@ -511,10 +511,19 @@ a {
   display: block;
   outline: none;
 }
-.hud {
+.hud-stack {
+  /* HUD box + colour keys in one column: the keys flow below the HUD, so the ⓘ expander never overprints them. */
   position: absolute;
   left: 12px;
   top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.hud {
+  position: static;
   pointer-events: none;
   font-family: var(--font-mono);
   font-size: var(--fs-hud);
@@ -1381,9 +1390,7 @@ a {
   color: var(--muted);
 }
 .hud-keys {
-  position: absolute;
-  left: 12px;
-  top: 74px;
+  position: static;
   pointer-events: none;
   display: flex;
   flex-direction: column;
@@ -2210,4 +2217,428 @@ a {
   justify-content: center;
   font-size: 14px;
   padding: 9px 12px;
+}
+
+/* ---- Analysis dock tab (OD · Maneuver · Reach · Tasking) ------------------------------------ */
+.an-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.an-target {
+  font-size: 12px;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.an-target .tag {
+  margin-left: 6px;
+}
+.an-target-name {
+  margin: -4px 0 8px;
+}
+.an-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.an-tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 0 7px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.an-tabs button.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.an-tabs .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.an-tabs .dot.ok {
+  background: var(--ok);
+}
+.an-tabs .dot.err {
+  background: var(--alert);
+}
+.an-panel p.small {
+  margin: 0 0 8px;
+}
+.an-ctls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  margin-bottom: 8px;
+}
+.an-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.an-ctl .k {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.an-ctl select,
+.an-ctl input[type='range'] {
+  width: 100%;
+  min-width: 0;
+}
+.an-ctl select {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 4px 6px;
+  font-size: 13px;
+}
+.an-ctl input[type='range'] {
+  accent-color: var(--accent);
+  height: 22px;
+}
+.an-ctl-wide {
+  grid-column: 1 / -1;
+}
+.an-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.an-check input {
+  accent-color: var(--accent);
+}
+.an-runbar {
+  margin: 4px 0 10px;
+}
+.an-runrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.an-status {
+  /* own line under the CTA: the result stamp (LIVE · for <object> @ <epoch> · timings) must never wrap mid-id */
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  line-height: 1.5;
+}
+.an-status b {
+  color: var(--text);
+  white-space: nowrap;
+}
+.an-error {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--alert);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: rgba(255, 77, 79, 0.08);
+  color: var(--text);
+  font-size: 12px;
+  word-break: break-word;
+}
+.an-stale {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--warn);
+  border-left-width: 3px;
+  border-radius: var(--radius);
+  background: rgba(255, 184, 107, 0.08);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.an-stale.alert {
+  border-color: var(--alert);
+  background: rgba(255, 77, 79, 0.08);
+}
+.an-stale button.link {
+  display: inline;
+  margin-left: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.spinner {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(76, 201, 240, 0.25);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  vertical-align: -2px;
+  margin-right: 6px;
+}
+.spinner.sm {
+  width: 9px;
+  height: 9px;
+  border-width: 1.5px;
+  margin: 0;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.tag.live-badge {
+  color: var(--ok);
+  border-color: var(--ok);
+  background: rgba(45, 212, 191, 0.1);
+}
+.an-h {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 12px 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.an-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.an-tiles.metrics {
+  grid-template-columns: repeat(2, 1fr);
+}
+.an-tiles.metrics .an-tile:last-child {
+  grid-column: 1 / -1;
+}
+.an-tile {
+  background: var(--panel);
+  padding: 6px 8px;
+  min-width: 0;
+}
+.an-tile .k {
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.an-tile .v {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.an-tile .v small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.an-tile .s {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.an-tile.ok .v {
+  color: var(--ok);
+}
+.an-tile.warn .v {
+  color: var(--warn);
+}
+.an-tile.alert .v {
+  color: var(--alert);
+}
+.an-tile.accent .v {
+  color: var(--accent);
+}
+.an-tbl {
+  width: 100%;
+  margin-bottom: 6px;
+}
+.an-tbl tr.dim td {
+  color: var(--muted);
+  opacity: 0.7;
+}
+.an-tbl tr.best td {
+  background: rgba(45, 212, 191, 0.06);
+}
+.an-tbl td.warn,
+.an-tbl .warn {
+  color: var(--warn);
+}
+.an-tbl .sw,
+.an-legend i {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  margin-right: 6px;
+  vertical-align: -1px;
+}
+.an-chart {
+  margin: 2px 0 6px;
+}
+.an-chart-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.an-chart-title {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+.an-legend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.an-legend.wrap {
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-bottom: 6px;
+}
+.an-legend span {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.an-note {
+  margin: 4px 0 8px;
+}
+.an-notes {
+  margin: 0 0 8px;
+  padding-left: 16px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.an-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  margin: 2px 0 6px;
+}
+.an-slider input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+  min-width: 0;
+}
+/* Tasking Gantt */
+.gantt {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 8px 4px;
+  background: var(--panel-2);
+  margin-bottom: 6px;
+}
+.gantt-row {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  align-items: center;
+  gap: 8px;
+  height: 16px;
+  margin-bottom: 3px;
+}
+.gantt-lbl {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gantt-strip {
+  position: relative;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.gantt-blk {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 1px;
+  box-shadow: inset -1px 0 0 var(--panel-2);
+}
+.gantt-empty {
+  position: absolute;
+  left: 6px;
+  top: -2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.gantt-axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
+  padding-left: 84px;
+  margin-top: 2px;
+}
+.timeline .controls .skip {
+  padding: 3px 6px;
+  font-family: var(--font-mono);
+}
+@media (max-width: 1500px) {
+  /* the custody key duplicates the HUD key; drop it so the "now / next" readout keeps its room */
+  .timeline .ribbon-key {
+    display: none;
+  }
+}
+.an-tbl td.num,
+.an-tbl th.num {
+  white-space: nowrap;
+}
+.an-tbl td.num.wrap {
+  white-space: normal;
+  word-break: break-word;
+}
+.an-tbl.dv-tbl td:first-child {
+  white-space: nowrap;
+  color: var(--muted);
 }

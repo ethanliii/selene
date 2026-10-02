@@ -8,6 +8,7 @@
  * after the TTL (or when the user explicitly re-runs after the TTL) so a backend started later is
  * picked up.
  */
+import { markEndpointLive } from '../api/client';
 import { mockArchitectureEvaluate } from './mockArchitecture';
 import { mockCoverage } from './mockCoverage';
 import {
@@ -83,7 +84,7 @@ export interface Result<T> {
 const UNAVAILABLE_TTL_MS = 60_000;
 const unavailableUntil = new Map<string, number>();
 
-/** True when the route recently failed as unreachable/404 (skip the fetch, go straight to the mock). */
+/** True when the route recently failed as unreachable (skip the fetch, go straight to the mock). */
 export function routeUnavailable(path: string): boolean {
   const until = unavailableUntil.get(path);
   return until !== undefined && performance.now() < until;
@@ -111,7 +112,9 @@ async function postWithFallback<T>(path: string, body: unknown, fallback: () => 
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    const unreachable = res.status === 502 || res.status === 503 || res.status === 504 || (res.status === 500 && text.trim() === '') || res.status === 404;
+    // Only "no backend answered" (gateway 502–504, the Vite proxy's empty-body 500) is the offline fallback; a 404
+    // (route missing on a stale backend) or any real error is shown inline, never masked by the schematic model.
+    const unreachable = res.status === 502 || res.status === 503 || res.status === 504 || (res.status === 500 && text.trim() === '');
     if (unreachable) {
       unavailableUntil.set(path, performance.now() + UNAVAILABLE_TTL_MS);
       const data = fallback();
@@ -142,6 +145,7 @@ export const studioApi = {
     if (r.mock) return r as Result<CoverageResponse>;
     const data = r.data as LiveCoverageResponse;
     if (!Array.isArray(data.coverage) || !data.grid?.xs) throw new StudioApiError(502, '/coverage', 'unexpected response shape from backend');
+    markEndpointLive('coverage');
     return { ...r, data: adaptLiveCoverage(data) };
   },
   /**
@@ -174,6 +178,7 @@ export const studioApi = {
     if (r.mock) return r as Result<ArchitectureEvaluateResponse>;
     const data = r.data as LiveArchitectureResponse;
     if (!Array.isArray(data.scores)) throw new StudioApiError(502, '/architecture/evaluate', 'unexpected response shape from backend');
+    markEndpointLive('architecture');
     return { ...r, data: adaptLiveArchitecture(data, live) };
   },
 };
@@ -186,7 +191,7 @@ const LIVE_MAX_HORIZON_D = 7;
 const LIVE_MAX_WORK_UNITS = 12_000;
 
 export interface LiveArchitectureRequest {
-  architectures: { name: string; ground: boolean; sensors: { platform: string; aperture_m: number; limiting_mag: number; fov_deg: number; slew_rate_deg_s: number; phase: number }[] }[];
+  architectures: { name: string; ground: boolean; sensors: { platform: string; aperture_m: number; limiting_mag: number; fov_deg: number; slew_rate_deg_s: number; phase: number; lon_deg?: number }[] }[];
   n_mc: number;
   horizon_days: number;
   seed: number;
@@ -211,12 +216,19 @@ export interface LiveArchitectureScore {
   n_detected?: number;
   n_space_sensors?: number;
   notes?: string;
+  coverage_pct_p05?: number;
+  coverage_pct_p95?: number;
+  custody_pct_p05?: number;
+  custody_pct_p95?: number;
+  revisit_mean_h_p05?: number;
+  revisit_mean_h_p95?: number;
 }
 
 export interface LiveArchitectureResponse {
   scores: LiveArchitectureScore[];
-  meta?: { n_mc?: number; timing?: { total_s?: number }; method_notes?: unknown; custody_threshold_km?: number };
+  meta?: { n_mc?: number; timing?: { total_s?: number }; method_notes?: unknown; custody_threshold_km?: number; caps_applied?: string[] };
   disclaimer?: string;
+  method?: string;
 }
 
 /** Clamp to the backend caps and pick the coarsest slot that satisfies the work-unit guard (20 → 240 min). */
@@ -231,7 +243,7 @@ export function toLiveArchitecture(req: ArchitectureEvaluateRequest): LiveArchit
     architectures: req.architectures.map((a) => ({
       name: a.name,
       ground: a.ground_network,
-      sensors: a.sensors.map((s) => ({ platform: LIVE_PLATFORM[s.orbit] ?? 'dro', aperture_m: s.aperture_m, limiting_mag: s.limiting_mag, fov_deg: s.fov_deg, slew_rate_deg_s: s.slew_rate_dps, phase: Math.min(0.99, Math.max(0, s.phase)) })),
+      sensors: a.sensors.map((s) => ({ platform: LIVE_PLATFORM[s.orbit] ?? 'dro', aperture_m: s.aperture_m, limiting_mag: s.limiting_mag, fov_deg: s.fov_deg, slew_rate_deg_s: s.slew_rate_dps, phase: Math.min(0.99, Math.max(0, s.phase)), ...(typeof s.lon_deg === 'number' ? { lon_deg: s.lon_deg } : {}) })),
     })),
     n_mc,
     horizon_days,
@@ -253,8 +265,26 @@ export function adaptLiveArchitecture(live: LiveArchitectureResponse, req: LiveA
     detect_latency_h_p95: s.detection_latency_censored_p95_h ?? s.detection_latency_p95_h ?? horizonH,
     n_mc: live.meta?.n_mc ?? req.n_mc,
     n_sensors: s.n_space_sensors,
+    n_space_sensors: s.n_space_sensors,
     undetected_pct: typeof s.detections_pct === 'number' ? Math.max(0, 100 - s.detections_pct) : undefined,
     never_observed_pct: s.revisit_censored_objects_pct,
+    coverage_pct_p05: s.coverage_pct_p05,
+    coverage_pct_p95: s.coverage_pct_p95,
+    custody_pct_p05: s.custody_pct_p05,
+    custody_pct_p95: s.custody_pct_p95,
+    revisit_h_p05: s.revisit_mean_h_p05,
+    revisit_h_p95: s.revisit_mean_h_p95,
+    custody_pct_null: s.custody_pct_null,
+    notes: s.notes,
   }));
-  return { scores, mock: false, method: `backend Monte Carlo · ${req.n_mc} draws · ${req.horizon_days} d · ${req.slot_min}-min slots · custody threshold ${live.meta?.custody_threshold_km ?? 100} km` };
+  const notes = Array.isArray(live.meta?.method_notes) ? (live.meta!.method_notes as unknown[]).filter((x): x is string => typeof x === 'string') : undefined;
+  return {
+    scores,
+    mock: false,
+    method: live.method ?? `backend Monte Carlo · ${live.meta?.n_mc ?? req.n_mc} draws · ${req.horizon_days} d · ${req.slot_min}-min slots · custody threshold ${live.meta?.custody_threshold_km ?? 100} km`,
+    method_notes: notes,
+    caps_applied: live.meta?.caps_applied,
+    disclaimer: live.disclaimer,
+    custody_threshold_km: live.meta?.custody_threshold_km,
+  };
 }

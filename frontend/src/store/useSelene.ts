@@ -26,7 +26,9 @@ export interface Layers {
 export const SPEEDS: number[] = [1, 60, 600, 3600, 10000];
 export type PlaybackSpeed = number;
 
-export type DockTab = 'object' | 'events' | 'brief';
+export type DockTab = 'object' | 'events' | 'analysis' | 'brief';
+export const DOCK_TABS: DockTab[] = ['object', 'events', 'analysis', 'brief'];
+export const isDockTab = (v: unknown): v is DockTab => typeof v === 'string' && (DOCK_TABS as string[]).includes(v);
 
 export interface Toast {
   id: number;
@@ -118,6 +120,8 @@ export interface SeleneState {
   /** Advance the narration: pops the next queued event when the current dwell is over. Returns the event shown. */
   tickCaptions: (nowMs: number) => SeleneEvent | null;
   clearCaptions: () => void;
+  /** Jump the cursor to the next (or previous) story event — observations are skipped. Returns the event, if any. */
+  skipToEvent: (dir: 1 | -1) => SeleneEvent | null;
   /** Load a (normalised) demo scenario: sets range, events, brief and rewinds to t0. */
   loadScenario: (s: DemoScenario) => void;
   reset: () => void;
@@ -247,6 +251,21 @@ export const useSelene = create<SeleneState>((set, get) => ({
     return next;
   },
   clearCaptions: () => set((s) => (s.caption || s.captionQueue.length ? { caption: null, captionQueue: [], captionUntilMs: 0 } : s)),
+  skipToEvent: (dir) => {
+    const { events, tSec, t0Sec, t1Sec } = get();
+    const story = events.filter((e) => e.kind !== 'observation');
+    // Forward: first story event strictly after the cursor; backward: the last one at least a minute before it
+    // (so repeated presses step through coincident beats one group at a time).
+    const target = dir > 0 ? story.find((e) => e.t > tSec + 0.5) : [...story].reverse().find((e) => e.t < tSec - 60);
+    if (!target) {
+      if (dir > 0) set({ tSec: t1Sec });
+      else set({ tSec: t0Sec });
+      return null;
+    }
+    // Land a hair past the event so it counts as reached (crossing registers for the driver: layers, selection).
+    set({ tSec: Math.min(t1Sec, Math.max(t0Sec, target.t + 0.5)), captionQueue: [], caption: null, captionUntilMs: 0 });
+    return target;
+  },
   loadScenario: (scenario) =>
     set({
       scenario,

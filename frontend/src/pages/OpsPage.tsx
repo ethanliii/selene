@@ -26,14 +26,16 @@ import { Dock } from '../panels/Dock';
 import { Timeline } from '../panels/Timeline';
 import { Toasts } from '../panels/Toasts';
 import { TopBar } from '../panels/TopBar';
+import { AnalysisOverlays } from '../scene/AnalysisOverlays';
 import { ExclusionCones, SensorFOVCones, SensorMarkers } from '../scene/Cones';
 import { GroundSites } from '../scene/GroundSites';
 import { Objects } from '../scene/Objects';
+import { ObservationFlashes } from '../scene/ObservationFlashes';
 import { OrbitFamilies } from '../scene/OrbitFamilies';
 import { ParticleCloud } from '../scene/ParticleCloud';
 import { Reachable } from '../scene/Reachable';
 import { SceneRoot } from '../scene/SceneRoot';
-import { fmtElapsed, useSelene, type Layers } from '../store/useSelene';
+import { fmtElapsed, isDockTab, useSelene, type Layers } from '../store/useSelene';
 
 let deepLinkApplied = false;
 
@@ -77,6 +79,7 @@ function Hud({ source, nParticles, tracksLoaded, tracksTotal }: { source: string
         {scenario ? (
           <>
             <span className="muted">SCENARIO</span>
+            {scenario.meta.source === 'browser-mock' ? <span className="tag warn">OFFLINE MOCK</span> : <span className="tag live-badge" title="Precomputed by the backend engines (GET /api/demo/scenario)">LIVE</span>}
             <b className="trunc" title={scenario.meta.title}>
               {scenario.meta.title}
             </b>
@@ -262,7 +265,7 @@ export function OpsPage() {
   const t0Iso = useSelene((s) => s.t0Iso);
   const t0Sec = useSelene((s) => s.t0Sec);
   const t1Sec = useSelene((s) => s.t1Sec);
-  const { objects, clouds, sensors, reachable, source, tracksLoaded, tracksTotal } = useScenarioFrame();
+  const { objects, clouds, sensors, reachable, source, tracksLoaded, tracksTotal, frame: sceneFrame } = useScenarioFrame();
   const [hintFaded, setHintFaded] = useState(false);
 
   useEffect(() => {
@@ -342,8 +345,9 @@ export function OpsPage() {
     const sel = q.get('select');
     const t = Number(q.get('t'));
     if (q.get('demo') === null) {
-      if (tab === 'object' || tab === 'events' || tab === 'brief') useSelene.getState().setDockTab(tab);
-      if (sel) useSelene.getState().selectObject(sel, 'user');
+      // An explicit &tab= wins over the "user selection brings the Object tab forward" rule: select as 'auto'.
+      if (sel) useSelene.getState().selectObject(sel, isDockTab(tab) ? 'auto' : 'user');
+      if (isDockTab(tab)) useSelene.getState().setDockTab(tab);
       if (Number.isFinite(t) && q.get('t') !== null) setTimeout(() => useSelene.getState().setT(t), 50);
       return;
     }
@@ -353,8 +357,8 @@ export function OpsPage() {
           useSelene.getState().setPlaying(false);
           useSelene.getState().setT(t);
         }
-        if (sel) useSelene.getState().selectObject(sel, 'user');
-        if (tab === 'object' || tab === 'events' || tab === 'brief') useSelene.getState().setDockTab(tab);
+        if (sel) useSelene.getState().selectObject(sel, isDockTab(tab) ? 'auto' : 'user');
+        if (isDockTab(tab)) useSelene.getState().setDockTab(tab);
       })
       .catch((e) => console.warn('auto demo failed', e));
   }, []);
@@ -379,10 +383,14 @@ export function OpsPage() {
           {layers.fov && <SensorFOVCones sensors={sensors} targets={targets} groundIds={groundIds} />}
           {layers.fov && <SensorMarkers sensors={sensors} groundIds={groundIds} showLabels={layers.labels} />}
           {layers.exclusion && <ExclusionCones sensors={sensors} config={sensorsCfg} groundIds={groundIds} />}
+          {source === 'scenario' && <ObservationFlashes frame={sceneFrame} sensors={sensors} targets={targets} />}
+          <AnalysisOverlays />
         </SceneRoot>
         {loading && <div className="loadbar" role="progressbar" aria-label="Loading scene data" />}
-        <Hud source={source} nParticles={nParticles} tracksLoaded={tracksLoaded} tracksTotal={tracksTotal} />
-        <Keys hasClouds={layers.clouds && clouds.length > 0} hasReach={layers.reach && !!reachable} />
+        <div className="hud-stack">
+          <Hud source={source} nParticles={nParticles} tracksLoaded={tracksLoaded} tracksTotal={tracksTotal} />
+          <Keys hasClouds={layers.clouds && clouds.length > 0} hasReach={layers.reach && !!reachable} />
+        </div>
         <PresenterCaption />
         <Toasts />
         <CameraPresets />

@@ -64,7 +64,7 @@ function normFrame(f: DemoFrame): DemoFrame {
   return out;
 }
 
-export function normalizeScenario(raw: DemoScenario): DemoScenario {
+export function normalizeScenario(raw: DemoScenario, source: 'backend' | 'browser-mock' = 'backend'): DemoScenario {
   const frames = [...(raw.frames ?? [])].sort((a, b) => a.t - b.t).map(normFrame);
   const events = [...(raw.events ?? [])].sort((a, b) => a.t - b.t).map(normEvent);
   const duration = raw.meta.duration_s || (frames.length ? frames[frames.length - 1].t : 86400);
@@ -76,11 +76,14 @@ export function normalizeScenario(raw: DemoScenario): DemoScenario {
     events.find((e) => e.object_id)?.object_id ??
     frames[0]?.objects[0]?.id;
   const { custody_km, lost_km } = custodyThresholds(raw, events);
+  const title = raw.meta.title ?? 'Demo scenario';
   return {
-    meta: { ...raw.meta, duration_s: duration, playback_s, playback_speed, protagonist_id, title: raw.meta.title ?? 'Demo scenario', custody_km, lost_km },
+    meta: { ...raw.meta, duration_s: duration, playback_s, playback_speed, protagonist_id, title: source === 'browser-mock' ? `[OFFLINE MOCK] ${title}` : title, custody_km, lost_km, source },
     frames,
     events,
     brief: raw.brief ?? '',
+    // Backend run metrics (custody/σ timelines, detection latency, Δv truth vs estimate) feed the metrics card.
+    metrics: raw.metrics,
   };
 }
 

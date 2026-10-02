@@ -10,7 +10,8 @@
  * is unreachable the browser schematic model answers and the results carry a muted SCHEMATIC MODEL tag.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, ErrorBar, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { api } from '../api/client';
 import { Icon } from '../panels/icons';
 import { TopBar } from '../panels/TopBar';
 import { studioApi } from '../studio/api';
@@ -106,16 +107,22 @@ function bestIndex(scores: ArchitectureScore[], key: keyof ArchitectureScore, hi
 
 const tickStyle = { fill: '#8d9db3', fontSize: 12 };
 
-function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMax, tall }: { title: string; unit: string; scores: ArchitectureScore[]; colors: string[]; dataKey: keyof ArchitectureScore; secondKey?: keyof ArchitectureScore; domainMax?: number; tall?: boolean }) {
+function MetricChart({ title, unit, scores, colors, dataKey, secondKey, loKey, hiKey, domainMax, tall }: { title: string; unit: string; scores: ArchitectureScore[]; colors: string[]; dataKey: keyof ArchitectureScore; secondKey?: keyof ArchitectureScore; loKey?: keyof ArchitectureScore; hiKey?: keyof ArchitectureScore; domainMax?: number; tall?: boolean }) {
   const fmtLabel = (v: number) => v.toFixed(v >= 100 ? 0 : 1);
   const span = domainMax ?? Math.max(1, ...scores.map((s) => s[dataKey] as number));
+  const whisk = !!loKey && !!hiKey && scores.some((s) => typeof s[loKey] === 'number' && typeof s[hiKey] === 'number');
   const data = scores.map((s, i) => {
     const v = s[dataKey] as number;
     const v2 = secondKey ? (s[secondKey] as number) : undefined;
     // the p95 direct label is dropped when it would sit on top of the mean label (< 8 % of the axis
     // apart); the value stays in the tooltip and the table
     const v2label = v2 === undefined ? '' : Math.abs(v2 - v) / span < 0.08 ? '' : fmtLabel(v2);
-    return { name: s.name, short: shortName(s.name), v, v2, v2label, color: colors[i] };
+    const lo = loKey ? (s[loKey] as number | undefined) : undefined;
+    const hi = hiKey ? (s[hiKey] as number | undefined) : undefined;
+    // asymmetric whisker [below, above] the mean: the p05–p95 band over the Monte Carlo draws
+    const err = typeof lo === 'number' && typeof hi === 'number' ? [Math.max(0, v - lo), Math.max(0, hi - v)] : undefined;
+    const pad = typeof hi === 'number' ? Math.max(0, hi - v) : 0;
+    return { name: s.name, short: shortName(s.name), v, v2, v2label, color: colors[i], err, lo, hi, pad };
   });
   return (
     <div className="metric-chart">
@@ -129,6 +136,7 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
             <span className="sw hollow" /> p95
           </span>
         )}
+        {whisk && <span className="muted">whisker = p05–p95 over draws</span>}
       </div>
       <div className={`chart-box${tall ? ' grid-cell' : ''}`}>
         <ResponsiveContainer width="100%" height="100%">
@@ -138,27 +146,41 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
             <YAxis domain={[0, domainMax ?? 'auto']} tick={tickStyle} stroke="#1c2733" />
             <Tooltip
               cursor={{ fill: 'rgba(255,255,255,0.04)' }}
-              content={({ active, payload }) =>
-                active && payload && payload.length ? (
+              content={({ active, payload }) => {
+                // series are looked up by dataKey: the stacked label-carrier bar ("pad") must not show up
+                const pv = payload?.find((p) => p.dataKey === 'v');
+                const p2 = payload?.find((p) => p.dataKey === 'v2');
+                const row = pv?.payload as { name: string; lo?: number; hi?: number } | undefined;
+                return active && pv && row ? (
                   <div className="studio-tip">
-                    <div>{(payload[0].payload as { name: string }).name}</div>
+                    <div>{row.name}</div>
                     <div>
                       {secondKey ? 'mean ' : ''}
-                      {(payload[0].value as number).toFixed(2)} {unit}
+                      {(pv.value as number).toFixed(2)} {unit}
                     </div>
-                    {secondKey && payload[1] && (
+                    {secondKey && p2 && (
                       <div>
-                        p95 {(payload[1].value as number).toFixed(2)} {unit}
+                        p95 {(p2.value as number).toFixed(2)} {unit}
+                      </div>
+                    )}
+                    {whisk && typeof row.lo === 'number' && typeof row.hi === 'number' && (
+                      <div>
+                        p05–p95 {row.lo.toFixed(1)}–{row.hi.toFixed(1)} {unit}
                       </div>
                     )}
                   </div>
-                ) : null
-              }
+                ) : null;
+              }}
             />
-            <Bar dataKey="v" isAnimationActive={false} radius={[3, 3, 0, 0]}>
+            <Bar dataKey="v" stackId="v" isAnimationActive={false} radius={[3, 3, 0, 0]}>
               {data.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
+              {whisk && <ErrorBar dataKey="err" width={6} strokeWidth={1.5} stroke="#d6e2f0" direction="y" />}
+            </Bar>
+            {/* Invisible bar stacked on the mean up to the p95 whisker tip: it carries the value label, so the label
+                sits ABOVE the whisker instead of being struck through by it. Zero-height when there is no whisker. */}
+            <Bar dataKey="pad" stackId="v" isAnimationActive={false} fill="transparent" stroke="none" legendType="none" tooltipType="none">
               <LabelList dataKey="v" position="top" formatter={fmtLabel} style={{ fill: '#d6e2f0', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }} />
             </Bar>
             {secondKey && (
@@ -199,6 +221,42 @@ export function ArchitecturePage() {
   const [err, setErr] = useState<string | null>(null);
   const [run, setRun] = useState<RunState | null>(null);
   const [view, setView] = useState<'map' | 'results'>('map');
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [presetNote, setPresetNote] = useState<string | null>(null);
+
+  /** Replace the saved architectures with the backend's reference presets (GET /api/architecture/presets). */
+  async function loadPresets() {
+    setPresetBusy(true);
+    setPresetNote(null);
+    try {
+      const p = await api.architecturePresets();
+      const toOrbit: Record<string, CandidateOrbit> = { geo: 'GEO', l1_halo: 'L1_halo', l2_halo_S: 'L2_halo', dro: 'DRO', resonant_3_1: 'resonant_3_1' };
+      const skipped: string[] = [];
+      const list: ArchitectureDef[] = p.presets.slice(0, MAX_ARCH).map((a, i) => ({
+        id: nextId('A'),
+        name: `${String.fromCharCode(65 + i)} · ${a.name}`,
+        ground_network: a.ground,
+        slot: i % ARCH_COLORS.length,
+        sensors: a.sensors.flatMap((s) => {
+          const orbit = toOrbit[s.platform];
+          if (!orbit) {
+            skipped.push(`${a.name}: ${s.platform}`);
+            return [];
+          }
+          const base = makeSensor(orbit, s.phase ?? 0);
+          return [{ ...base, aperture_m: s.aperture_m ?? base.aperture_m, limiting_mag: s.limiting_mag ?? base.limiting_mag, fov_deg: s.fov_deg, slew_rate_dps: s.slew_rate_deg_s, ...(typeof s.lon_deg === 'number' ? { lon_deg: s.lon_deg } : {}) }];
+        }),
+      }));
+      setArchs(list);
+      setSelId(list[0]?.id ?? '');
+      setView('map');
+      setPresetNote(`${list.length} backend presets loaded${p.presets.length > MAX_ARCH ? ` (first ${MAX_ARCH} of ${p.presets.length})` : ''}${skipped.length ? `; skipped sensors on platforms the map cannot draw: ${skipped.join(', ')}` : ''}`);
+    } catch (e) {
+      setPresetNote(`presets unavailable: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPresetBusy(false);
+    }
+  }
 
   const sel = archs.find((a) => a.id === selId) ?? archs[0] ?? null;
   const colorOf = (id: string) => ARCH_COLORS[(archs.find((a) => a.id === id)?.slot ?? 0) % ARCH_COLORS.length];
@@ -247,7 +305,7 @@ export function ArchitecturePage() {
       architectures: archs.map((a) => ({
         name: a.name,
         ground_network: a.ground_network,
-        sensors: a.sensors.map(({ orbit, aperture_m, limiting_mag, fov_deg, slew_rate_dps, phase }) => ({ orbit, aperture_m, limiting_mag, fov_deg, slew_rate_dps, phase })),
+        sensors: a.sensors.map(({ orbit, aperture_m, limiting_mag, fov_deg, slew_rate_dps, phase, lon_deg }) => ({ orbit, aperture_m, limiting_mag, fov_deg, slew_rate_dps, phase, ...(typeof lon_deg === 'number' ? { lon_deg } : {}) })),
       })),
       n_mc: nMc,
       horizon_days: horizonDays,
@@ -346,7 +404,11 @@ export function ArchitecturePage() {
             <button onClick={addArch} disabled={archs.length >= MAX_ARCH}>
               + New architecture
             </button>
+            <button onClick={() => void loadPresets()} disabled={presetBusy} title="Replace the list with the backend's reference architectures (GET /api/architecture/presets)">
+              {presetBusy ? 'Loading…' : 'Load backend presets'}
+            </button>
           </div>
+          {presetNote && <p className="hint">{presetNote}</p>}
           {sel && (
             <label className="check">
               <input type="checkbox" checked={sel.ground_network} onChange={(e) => updateArch(sel.id, (x) => ({ ...x, ground_network: e.target.checked }))} />
@@ -453,7 +515,7 @@ export function ArchitecturePage() {
           ) : (
             <div className="chart-grid">
               {METRICS.slice(0, 3).map((m) => (
-                <MetricChart key={m.key} title={m.label} unit={m.unit} scores={scores} colors={run.colors} dataKey={m.key} domainMax={m.unit === '%' ? 100 : undefined} tall />
+                <MetricChart key={m.key} title={m.label} unit={m.unit} scores={scores} colors={run.colors} dataKey={m.key} loKey={`${m.key}_p05` as keyof ArchitectureScore} hiKey={`${m.key}_p95` as keyof ArchitectureScore} domainMax={m.unit === '%' ? 100 : undefined} tall />
               ))}
               <MetricChart title="Maneuver-detection latency" unit="h" scores={scores} colors={run.colors} dataKey="detect_latency_h_mean" secondKey="detect_latency_h_p95" domainMax={latencyMax} tall />
             </div>
@@ -539,6 +601,8 @@ export function ArchitecturePage() {
                   </span>
                 ))}
               </div>
+              {run.res.method && <p className="hint method-line">{run.res.method}</p>}
+              {run.res.caps_applied && run.res.caps_applied.length > 0 && <p className="hint">Backend caps: {run.res.caps_applied.join('; ')}</p>}
               {scores.some((s) => (s.undetected_pct ?? 0) > 0 || (s.never_observed_pct ?? 0) > 0) && (
                 <p className="hint">
                   Censored (latency = remaining horizon):{' '}
@@ -567,7 +631,14 @@ export function ArchitecturePage() {
           )}
 
           <details className="explainer-box">
-            <summary>How the metrics are computed</summary>
+            <summary>How the metrics are computed{run?.res.method_notes?.length ? ' · backend method notes' : ''}</summary>
+            {run?.res.method_notes && run.res.method_notes.length > 0 && (
+              <ul className="method-notes">
+                {run.res.method_notes.map((n, i) => (
+                  <li key={i}>{n}</li>
+                ))}
+              </ul>
+            )}
             <dl className="explainer">
               <dt>Monte Carlo</dt>
               <dd>

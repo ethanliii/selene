@@ -362,181 +362,26 @@ export interface CoverageResponse {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/od/run
-export type OdMethod = 'iod' | 'batch' | 'ukf' | 'all';
+// POST /api/od/run, /api/maneuver/detect, /api/reachability, /api/tasking/schedule, /api/architecture/evaluate:
+// live-only shapes live in ./analysisTypes.ts (no browser placeholders exist for these any more).
 
-export interface OdRequest {
-  object_id: string;
-  t0: string;
-  t1: string;
-  sensors: string[];
-  method: OdMethod;
-  /** Measurement noise, arcsec (1σ). */
-  noise_arcsec?: number;
-  seed?: number;
-}
-
-export interface IodResult {
-  epoch: string;
-  state: State6;
-  /** Position error vs. truth, km (synthetic runs only). */
-  pos_err_km?: number;
-}
-
-export interface BatchResult {
-  epoch: string;
-  state: State6;
-  cov: Cov6;
-  iterations: number;
-  rms_arcsec: number;
-  converged: boolean;
-}
-
-export interface UkfResult {
-  epochs: string[];
-  states: State6[];
-  covs: Cov6[];
-  /** Normalized innovation squared per processed measurement. */
-  nis: number[];
-  /** Position-covariance trace sqrt (km), convenience series. */
-  sigma_pos_km?: number[];
-}
-
-export interface ParticleCloud {
-  epoch: string;
-  /** N×3 positions in km (GCRF) — flattened server-side as rows. */
-  positions_km: Vec3[];
-  frame: 'gcrf' | 'rotating';
-}
-
-export interface OdResponse {
-  iod?: IodResult;
-  batch?: BatchResult;
-  ukf?: UkfResult;
-  particles?: ParticleCloud[];
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/maneuver/detect
-export interface ManeuverDetectRequest {
-  object_id: string;
-  t0?: string;
-  t1?: string;
-  sensors?: string[];
-  /** False-alarm probability α for the NIS χ² gate. */
-  alpha?: number;
-  seed?: number;
-}
-
-export interface ManeuverDetection {
-  t: string;
-  nis: number;
-  /** Estimated Δv magnitude, m/s. */
-  dv_est: number;
-  /** Unit direction (GCRF) of the estimated Δv. */
-  dir: Vec3;
-  /** 1σ on dv_est, m/s. */
-  sigma: number;
-}
-
-export interface ManeuverDetectResponse {
-  detections: ManeuverDetection[];
-  /** Threshold used, χ²_m(1−α). */
-  threshold?: number;
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/reachability
-export interface ReachabilityRequest {
-  object_id: string;
-  dv_budget_mps: number;
-  horizon_h: number;
-  n_samples?: number;
-  seed?: number;
-}
-
+/** Region row of a reachable set (demo frames and the live route share these fields). */
 export interface ReachabilityRegion {
-  /** e.g. "L1 gateway", "L2 gateway", "NRHO corridor", "Lunar south pole", "GEO return" */
+  /** e.g. "L1 gateway", "L2 gateway", "NRHO corridor (9:2)", "Lunar south pole approach", "GEO belt return" */
   name: string;
-  /** Fraction of samples that enter the region within the horizon. */
+  key?: string;
+  kind?: string;
+  /** Fraction of sampled (direction, epoch) rays that enter the region within the horizon. */
   fraction: number;
-  /** Earliest arrival, hours after burn (null if unreachable). */
+  sample_fraction?: number;
+  n_hit?: number;
+  /** Earliest arrival, hours after the reference epoch (null if unreachable). */
   earliest_h: number | null;
-}
-
-export interface ReachabilityResponse {
-  /** Terminal (or sampled) positions, rotating frame nondimensional, for the point cloud. */
-  points: Vec3[];
-  regions: ReachabilityRegion[];
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/tasking/schedule
-export type TaskingMethod = 'greedy' | 'milp' | 'random';
-
-export interface TaskingRequest {
-  objects: string[];
-  sensors: string[];
-  t0: string;
-  t1: string;
-  method: TaskingMethod;
-  slot_s?: number;
-}
-
-export interface TaskingSlot {
-  t: string;
-  sensor_id: string;
-  object_id: string;
-  /** Expected information gain ½ ln(det P⁻/det P⁺). */
-  info_gain: number;
-}
-
-export interface TaskingResponse {
-  schedule: TaskingSlot[];
-  custody_pct: number;
-  /** Mean time since last observation, hours, over objects and time. */
-  mean_tslo_h: number;
-  /** Summed position-covariance trace per epoch (km²). */
-  trace_series: { epochs: string[]; trace: number[] };
-  per_object?: { object_id: string; custody_pct: number; mean_tslo_h: number }[];
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/architecture/evaluate
-export interface ArchitectureSensorSpec {
-  orbit: SpaceObserverOrbit;
-  orbit_member_id?: string;
-  limiting_mag?: number;
-  fov_deg?: number;
-  /** Phase offset along the orbit, fraction of period [0,1). */
-  phase?: number;
-}
-
-export interface Architecture {
-  name: string;
-  sensors: ArchitectureSensorSpec[];
-}
-
-export interface ArchitectureEvaluateRequest {
-  architectures: Architecture[];
-  n_mc: number;
-  seed?: number;
-}
-
-export interface ArchitectureScore {
-  name: string;
-  coverage_pct: number;
-  custody_pct: number;
-  /** Mean revisit time, hours. */
-  revisit_h: number;
-  /** Maneuver-detection latency, hours: mean and 95th percentile. */
-  detect_latency_h_mean: number;
-  detect_latency_h_p95: number;
-  n_mc: number;
-}
-
-export interface ArchitectureEvaluateResponse {
-  scores: ArchitectureScore[];
+  earliest_nominal_h?: number | null;
+  min_dv_mps?: number | null;
+  nominal_hits?: boolean;
+  newly_reachable?: boolean;
+  why_it_matters?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -659,6 +504,8 @@ export interface DemoMeta {
    *  (backend: metrics.filter.custody_km / lost_km; mock: its CUSTODY constants). Filled by demo/normalize.ts. */
   custody_km?: number;
   lost_km?: number;
+  /** Where the bundle came from (filled by demo/normalize.ts): the backend engines, or the browser mock (offline). */
+  source?: 'backend' | 'browser-mock';
 }
 
 export interface DemoScenario {

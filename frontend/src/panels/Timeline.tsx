@@ -129,6 +129,13 @@ export function Timeline() {
   }, [scenario, events, t0, t1]);
 
   const reveal = !scenario || finished;
+  const skipToEvent = useSelene((s) => s.skipToEvent);
+  const enqueueCaptions = useSelene((s) => s.enqueueCaptions);
+  /** Jump to the next/previous story event (observations skipped) and narrate just that one. */
+  const skipEvent = (dir: 1 | -1) => {
+    const ev = skipToEvent(dir);
+    if (ev) enqueueCaptions([ev], true);
+  };
   // "Now" = the event being narrated (one at a time, so coincident beats each get their turn), else the last past one.
   const narrated = useSelene((s) => s.caption);
   const pastEvents = events.filter((e) => e.t <= tSec && e.kind !== 'observation');
@@ -154,6 +161,16 @@ export function Timeline() {
           {playing ? <Icon name="pause" /> : <Icon name="play" />}
           {playing ? 'Pause' : 'Play'}
         </button>
+        {scenario && (
+          <>
+            <button className="toggle skip" title="Back to the previous story event" onClick={() => skipEvent(-1)} aria-label="Previous event">
+              ‹ ev
+            </button>
+            <button className="toggle skip" title={next ? `Skip to the next story event (${reveal ? kindLabel(next.kind).toLowerCase() : 'in ' + fmtAge(next.t - tSec)})` : 'No further events'} onClick={() => skipEvent(1)} disabled={!next} aria-label="Next event">
+              ev ›
+            </button>
+          </>
+        )}
         <select value={speed} onChange={(e) => setSpeed(Number(e.target.value))} title={`Playback speed: ${speedLabel(speed)} sim seconds per wall-clock second${scripted ? ` · scripted story = ${speedLabel(scripted)}` : ''}`}>
           {options.map((s) => (
             <option key={s} value={s} title={`${speedLabel(s)} sim seconds per wall-clock second`}>

@@ -5,28 +5,11 @@
  *  - Orbit families, object motion and uncertainty clouds come from a browser CR3BP integrator
  *    (src/lib/cr3bp.ts): real three-body dynamics, literature initial conditions, differential correction.
  *  - Ephemeris angles use mean-element formulas (src/lib/ephem.ts), not DE440s.
- *  - Coverage / OD / tasking / architecture numbers are LAYOUT PLACEHOLDERS (zeros), never physics results.
+ *  - Coverage numbers are LAYOUT PLACEHOLDERS, never physics results. OD / maneuver / reachability / tasking /
+ *    architecture have NO browser placeholder at all: those panels show the backend's answer or an inline error.
  * Everything is labelled SIMULATED / notional; nothing here refers to a real spacecraft or country.
  */
-import type {
-  ArchitectureEvaluateRequest,
-  ArchitectureEvaluateResponse,
-  CatalogObject,
-  CoverageRequest,
-  CoverageResponse,
-  DemoScenario,
-  EphemerisBodies,
-  Health,
-  ManeuverDetectResponse,
-  OdResponse,
-  OrbitFamilies,
-  ReachabilityRequest,
-  ReachabilityResponse,
-  Sensors,
-  TaskingRequest,
-  TaskingResponse,
-  Vec3,
-} from './types';
+import type { CatalogObject, CoverageRequest, CoverageResponse, DemoScenario, EphemerisBodies, Health, OrbitFamilies, Sensors, Vec3 } from './types';
 import { MOCK_GROUND, MOCK_SPACE } from '../demo/mockNetwork';
 import { buildMockScenario, MOCK_OBJECTS, mockObjectGcrfState, SCENARIO_T0 } from '../demo/mockScenario';
 import { L_STAR_KM, lagrangePoints, mockFamilies as cr3bpFamilies, MU as MU_CR3BP } from '../lib/cr3bp';
@@ -118,61 +101,7 @@ export function mockCoverage(req: CoverageRequest): CoverageResponse {
   return { grid: { ...req.grid, x, y }, values, epochs };
 }
 
-export function mockOd(): OdResponse {
-  const c = mockCatalog()[0];
-  return { ukf: { epochs: [T0], states: [c.state_gcrf_km], covs: [identity6(100)], nis: [1.0] }, particles: [] };
-}
-
-export const mockManeuver: ManeuverDetectResponse = { detections: [], threshold: 5.99 };
-
-export function mockReachability(req: ReachabilityRequest): ReachabilityResponse {
-  // Placeholder ring (layout only). The scripted mock scenario carries a real CR3BP reachable set instead.
-  const pts: Vec3[] = [];
-  const r = 0.05 + 0.002 * req.dv_budget_mps * (req.horizon_h / 24);
-  for (let i = 0; i < 200; i++) {
-    const a = (i / 200) * 2 * Math.PI;
-    pts.push([1 - MU + r * Math.cos(a) * (0.5 + 0.5 * ((i * 7919) % 97) / 97), r * Math.sin(a) * (0.5 + 0.5 * ((i * 104729) % 89) / 89), 0]);
-  }
-  return {
-    points: pts,
-    regions: [
-      { name: 'L1 gateway', fraction: 0, earliest_h: null },
-      { name: 'L2 gateway', fraction: 0, earliest_h: null },
-      { name: 'NRHO corridor', fraction: 0, earliest_h: null },
-      { name: 'Lunar south pole', fraction: 0, earliest_h: null },
-      { name: 'GEO return', fraction: 0, earliest_h: null },
-    ],
-  };
-}
-
-export function mockTasking(req: TaskingRequest): TaskingResponse {
-  return {
-    schedule: [],
-    custody_pct: 0,
-    mean_tslo_h: 0,
-    trace_series: { epochs: [req.t0, req.t1], trace: [0, 0] },
-  };
-}
-
-export function mockArchitecture(req: ArchitectureEvaluateRequest): ArchitectureEvaluateResponse {
-  return {
-    scores: req.architectures.map((a) => ({
-      name: a.name,
-      coverage_pct: 0,
-      custody_pct: 0,
-      revisit_h: 0,
-      detect_latency_h_mean: 0,
-      detect_latency_h_p95: 0,
-      n_mc: 0,
-    })),
-  };
-}
-
 /** Scripted story generated in the browser from CR3BP dynamics (see demo/mockScenario.ts). */
 export function mockDemo(): DemoScenario {
   return buildMockScenario();
-}
-
-function identity6(scale: number): number[][] {
-  return Array.from({ length: 6 }, (_, i) => Array.from({ length: 6 }, (_, j) => (i === j ? scale : 0)));
 }

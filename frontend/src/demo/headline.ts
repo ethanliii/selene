@@ -71,6 +71,7 @@ export function kindLabel(kind: string): string {
     custody_lost: 'Custody lost',
     custody_regained: 'Custody regained',
     entered_region: 'Entered region',
+    closest_approach: 'Closest approach (simulation truth)',
     reachability_alert: 'Reachability',
     tasking: 'Tasking',
     tasking_update: 'Tasking',
@@ -213,6 +214,14 @@ export function deriveHeadline(e: Pick<SeleneEvent, 'kind' | 'text' | 'object_id
       h = `${obj} enters ${name}${dist ? ` — ${dist[1]} km from ${dist[2]}` : ''}`;
       break;
     }
+    case 'closest_approach': {
+      // Simulation-truth marker: how close the object really came to a region's anchor point (no transit implied).
+      const region = str(d.region);
+      const dist = num(d.distance_km);
+      const where = region ? regionName(region).replace(/ gateway$/, '') : 'a region';
+      h = `${obj} passes ${dist !== null ? `${fmtKm(dist)} km from ` : 'near '}${where}${d.transit === false ? ', no transit' : d.transit === true ? ' and transits' : ''}`;
+      break;
+    }
     case 'reachability_alert': {
       const regions = Array.isArray(d.regions) ? (d.regions as { name?: string; fraction?: number }[]) : [];
       const best = regions.filter((r) => typeof r.fraction === 'number' && r.fraction > 0).sort((a, b) => (b.fraction ?? 0) - (a.fraction ?? 0))[0];
@@ -226,7 +235,8 @@ export function deriveHeadline(e: Pick<SeleneEvent, 'kind' | 'text' | 'object_id
     case 'maneuver_characterized':
     case 'maneuver_characterised':
       if (isFailedOutcome(e)) h = `Maneuver on ${obj} not characterised`;
-      else h = dv !== null ? `Maneuver characterised: Δv ${dv.toFixed(1)}${dvSig !== null ? ` ± ${dvSig.toFixed(1)}` : ''} m/s` : `Maneuver on ${obj} characterised`;
+      // The 1σ is shown to the decimals it needs (0.03 m/s must not read as "± 0.0").
+      else h = dv !== null ? `Maneuver characterised: Δv ${dv.toFixed(dvSig !== null && dvSig < 0.1 ? 2 : 1)}${dvSig !== null ? ` ± ${dvSig.toFixed(dvSig < 0.1 ? 2 : 1)}` : ''} m/s` : `Maneuver on ${obj} characterised`;
       break;
     case 'sim_truth':
     case 'maneuver':
