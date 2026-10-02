@@ -216,3 +216,57 @@ def test_cors_env_override(monkeypatch):
     assert app_module.cors_origins() == ["https://ops.example", "https://b.example"]
     monkeypatch.setenv("SELENE_CORS_ORIGINS", "*")
     assert app_module.cors_origins() == ["*"]
+
+
+# ---------------------------------------------------------------------------
+# residual review findings: OD window far from the catalog epoch; visibility outside a Horizons span
+def test_od_window_far_from_the_catalog_epoch_is_400_with_the_supported_window(client):
+    """The notional truth is served for the catalog epoch +/- 120 days (deterministic extension); a window beyond
+    that used to surface the extension's ValueError as a bare 500."""
+    r = client.post("/api/od/run", json={"t0": "2026-09-01T00:00:00", "method": "ukf", "sensors": ["geo_west"], "particles": None})
+    assert r.status_code == 400, r.text
+    d = r.json()["detail"]
+    assert "supported truth window" in d and "2025-11-01T00:00:00Z .. 2026-06-29T00:00:00Z" in d and "/api/od/presets" in d
+    r = client.post("/api/od/run", json={"t0": "2025-10-20T00:00:00", "t1": "2025-10-21T00:00:00", "method": "ukf",
+                                         "sensors": ["geo_west"], "particles": None})
+    assert r.status_code == 400 and "supported truth window" in r.json()["detail"]
+    # the window is published with the presets and on the catalog object
+    p = client.get("/api/od/presets").json()
+    assert p["supported_window_utc"]["SIM-DRO-01"] == ["2025-11-01T00:00:00Z", "2026-06-29T00:00:00Z"] and "supported_window_note" in p
+    o = client.get("/api/catalog/objects/SIM-DRO-01").json()
+    assert o["truth"]["supported_window_utc"] == ["2025-11-01T00:00:00Z", "2026-06-29T00:00:00Z"]
+    assert o["truth"]["supported_window_tdb_s"][0] < o["truth"]["window_tdb_s"][0] < o["truth"]["window_tdb_s"][1] < o["truth"]["supported_window_tdb_s"][1]
+    hz = client.get("/api/catalog/objects/HZ-1176").json()
+    assert hz["supported_window_utc"] == ["2026-02-15T00:00:00Z", "2026-03-30T23:59:59Z"]
+    # a window inside the supported range but outside the cached 15-day arc still works (deterministic extension)
+    r = client.post("/api/od/run", json={"t0": "2026-05-20T00:00:00", "t1": "2026-05-21T00:00:00", "method": "ukf",
+                                         "sensors": ["geo_west"], "cadence_min": 360, "particles": None})
+    assert r.status_code == 200, r.text
+
+
+def test_visibility_outside_the_horizons_span_is_no_ephemeris_not_fabricated(client):
+    """Epochs where a real Horizons object has no cached ephemeris are 'no_ephemeris' (null visibility, excluded from
+    fraction_visible); a window entirely outside the span is a 400 naming it.  Previously NaN geometry was evaluated
+    and answered 'too_faint' / 'daylight' for epochs the catalog knows nothing about."""
+    r = client.get("/api/sensors/haleakala/visibility", params={"object_id": "HZ-1176", "t0": "2026-03-28T00:00:00Z",
+                                                                 "t1": "2026-04-04T00:00:00Z", "n": 8})
+    assert r.status_code == 200, r.text
+    b = r.json()
+    assert b["n"] == 8 and b["n_evaluated"] == 3 and b["n_no_ephemeris"] == 5
+    assert b["no_ephemeris"] == [False] * 3 + [True] * 5
+    assert b["ephemeris_span_utc"] == ["2026-02-15T00:00:00Z", "2026-03-30T23:59:59Z"] and "no_ephemeris" in b["note"]
+    for k in range(3, 8):
+        assert b["visible"][k] is None and b["reasons"][k] is None and b["magnitude"][k] is None
+        assert b["range_km"][k] is None and b["phase_deg"][k] is None and b["reason_names"][k] == ["no_ephemeris"]
+    for k in range(3):
+        assert isinstance(b["visible"][k], bool) and isinstance(b["reasons"][k], int) and b["range_km"][k] > 0
+        assert "no_ephemeris" not in b["reason_names"][k]
+    evaluated = [v for v in b["visible"] if v is not None]
+    assert b["fraction_visible"] == sum(evaluated) / len(evaluated)
+    assert len(b["t_s"]) == len(b["epochs_utc"]) == 8
+    r = client.get("/api/sensors/haleakala/visibility", params={"object_id": "HZ-1176", "t0": "2026-05-01T00:00:00Z", "n": 4})
+    assert r.status_code == 400 and "entirely outside the ephemeris span" in r.json()["detail"] and "2026-03-30T23:59:59Z" in r.json()["detail"]
+    # simulated objects: every epoch inside the extension window has an ephemeris
+    r = client.get("/api/sensors/haleakala/visibility", params={"object_id": "SIM-DRO-01", "n": 4})
+    assert r.status_code == 200 and r.json()["n_no_ephemeris"] == 0 and r.json()["note"] is None
+    assert client.get("/api/sensors/haleakala/visibility", params={"object_id": "nope", "n": 4}).status_code == 404

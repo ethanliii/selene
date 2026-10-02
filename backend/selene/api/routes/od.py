@@ -122,7 +122,16 @@ PRESETS = {
 
 @router.get("/presets")
 def presets():
-    return {"presets": PRESETS, "defaults": OdRequest().model_dump()}
+    """Presets, request defaults and the supported observation window per SIMULATED object (``t0``/``t1`` must lie
+    inside ``supported_window_utc[object_id]``: the catalog epoch ± 120 days of deterministic truth extension;
+    requests outside it are 400, see :func:`od_run`)."""
+    cat = get_catalog()
+    sims = [e.id for e in cat.objects("simulated")]
+    return {"presets": PRESETS, "defaults": OdRequest().model_dump(),
+            "supported_window_utc": {oid: cat.truth_window_utc(oid) for oid in sims},
+            "supported_window_note": "synthetic truth is served for the catalog epoch +/- 120 days (cached 15-day window plus "
+                                     "deterministic extension); t0 and t1 of a run must lie inside it, and the window itself is "
+                                     "at most 14 days long"}
 
 
 def _prior(truth_state, req: OdRequest, rng):
@@ -148,6 +157,11 @@ def od_run(req: OdRequest):
         raise HTTPException(400, detail="t1 must be after t0")
     if t1_s - t0_s > 14 * 86400.0 + 60.0:   # 60 s tolerance: the cap is meant in UTC, t_s is TDB
         raise HTTPException(400, detail="window longer than 14 days is not supported by this endpoint")
+    w_lo, w_hi = cat.truth_window_s(req.object_id)
+    if t0_s < w_lo or t1_s > w_hi:
+        lo_utc, hi_utc = cat.truth_window_utc(req.object_id)
+        raise HTTPException(400, detail=f"window outside the supported truth window of {req.object_id}: {lo_utc} .. {hi_utc} "
+                                        f"(catalog epoch {cat.epoch_utc[:19]}Z +/- 120 days; see /api/od/presets supported_window_utc)")
     try:
         sensors = resolve_sensors(req.sensors)
     except KeyError as e:
@@ -180,7 +194,10 @@ def od_run(req: OdRequest):
 
     # 1. observations ------------------------------------------------------------
     t = time.perf_counter()
-    obs = simulate_observations(req.object_id, sensors, grid, req.sigma_arcsec, rng, req.respect_visibility)
+    try:
+        obs = simulate_observations(req.object_id, sensors, grid, req.sigma_arcsec, rng, req.respect_visibility)
+    except ValueError as e:   # truth extension limit or a sensor-model domain error: a client error, not a 500
+        raise HTTPException(400, detail=err_detail(e))
     if len(obs) > req.max_obs:
         keep = np.linspace(0, len(obs) - 1, req.max_obs).astype(int)
         obs_list = [obs[i] for i in keep]

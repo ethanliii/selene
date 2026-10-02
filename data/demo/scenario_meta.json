@@ -67,20 +67,20 @@
    "closest_approach": "SIMULATED-truth marker of the closest approach to L1 (a graze, not a neck transit)"
   },
   "search_fields_per_slot": 25,
-  "brief_generated_utc": "2026-10-02T15:37:05Z",
+  "brief_generated_utc": "2026-10-02T16:19:50Z",
   "timing_s": {
-   "truth_s": 0.32,
-   "ground_obs_s": 0.72,
-   "ukf1_detect_s": 0.28,
-   "reachability_s": 0.69,
+   "truth_s": 0.43,
+   "ground_obs_s": 0.96,
+   "ukf1_detect_s": 0.36,
+   "reachability_s": 0.98,
    "decay_s": 0.03,
-   "tasking_s": 1.45,
-   "reacq_s": 0.03,
+   "tasking_s": 1.85,
+   "reacq_s": 0.04,
    "ukf2_detect_s": 0.02,
-   "dv_estimate_s": 0.24,
-   "clouds_s": 0.45,
-   "frames_s": 0.18,
-   "total_s": 4.45
+   "dv_estimate_s": 0.35,
+   "clouds_s": 0.64,
+   "frames_s": 0.26,
+   "total_s": 5.99
   }
  },
  "metrics": {
@@ -1910,29 +1910,71 @@
      "key": "l1_gateway",
      "name": "L1 gateway",
      "kind": "gateway",
-     "fraction": 0.1424,
-     "sample_fraction": 0.0237,
-     "n_hit": 41,
-     "earliest_h": 31.0,
+     "fraction": 0.0833,
+     "sample_fraction": 0.0139,
+     "n_hit": 24,
+     "earliest_h": 33.0,
      "earliest_nominal_h": null,
-     "min_dv_mps": 10.0,
+     "min_dv_mps": 89.1,
      "nominal_hits": false,
      "newly_reachable": true,
-     "why_it_matters": "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an object that can transit it can reach the Moon-Earth corridor and the lunar vicinity."
+     "why_it_matters": "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an object that can transit it can reach the Moon-Earth corridor and the lunar vicinity.",
+     "diagnostics": {
+      "libration_point": "L1",
+      "far_realm": "Earth realm",
+      "n_samples": 1728,
+      "n_transit": 24,
+      "n_enter_ball": 1687,
+      "n_cross_plane_in_ball": 1492,
+      "n_cross_and_return": 1468,
+      "n_reach_far_realm": 65,
+      "n_far_realm_other_route": 41,
+      "other_route_min_crossing_km": 39528.0,
+      "max_depth_past_plane_km": 18605.0,
+      "closest_km": 433.0,
+      "t_closest_h": 44.0,
+      "closest_dv_mps": 20.0,
+      "nominal_closest_km": 4106.0,
+      "nominal_t_closest_h": 44.0,
+      "radius_km": 19220.0,
+      "realm_margin_km": 19220.0,
+      "definition": "transit = enters the neck ball from one realm proper, crosses the plane inside it and reaches the other realm proper (|x - x_L| > margin) with C < C_L; counts are samples (not rays)"
+     }
     },
     {
      "key": "l2_gateway",
      "name": "L2 gateway",
      "kind": "gateway",
-     "fraction": 0.0625,
-     "sample_fraction": 0.011,
-     "n_hit": 19,
-     "earliest_h": 127.0,
+     "fraction": 0.0104,
+     "sample_fraction": 0.0017,
+     "n_hit": 3,
+     "earliest_h": 135.0,
      "earliest_nominal_h": null,
-     "min_dv_mps": 38.8,
+     "min_dv_mps": 99.2,
      "nominal_hits": false,
      "newly_reachable": true,
-     "why_it_matters": "The L2 neck is the doorway to translunar space and the home of far-side relays and halo/NRHO traffic; it is also the hardest region to observe from Earth (behind the Moon, lunar glare)."
+     "why_it_matters": "The L2 neck is the doorway to translunar space and the home of far-side relays and halo/NRHO traffic; it is also the hardest region to observe from Earth (behind the Moon, lunar glare).",
+     "diagnostics": {
+      "libration_point": "L2",
+      "far_realm": "exterior realm",
+      "n_samples": 1728,
+      "n_transit": 3,
+      "n_enter_ball": 154,
+      "n_cross_plane_in_ball": 31,
+      "n_cross_and_return": 28,
+      "n_reach_far_realm": 24,
+      "n_far_realm_other_route": 21,
+      "other_route_min_crossing_km": 50387.0,
+      "max_depth_past_plane_km": 17372.0,
+      "closest_km": 283.0,
+      "t_closest_h": 160.0,
+      "closest_dv_mps": 50.0,
+      "nominal_closest_km": 40730.0,
+      "nominal_t_closest_h": 168.0,
+      "radius_km": 19220.0,
+      "realm_margin_km": 19220.0,
+      "definition": "transit = enters the neck ball from one realm proper, crosses the plane inside it and reaches the other realm proper (|x - x_L| > margin) with C < C_L; counts are samples (not rays)"
+     }
     },
     {
      "key": "nrho_corridor",
@@ -2036,34 +2078,79 @@
    "refined_min_dv": {
     "l1_gateway": {
      "region": "l1_gateway",
-     "dv_mps": 10.0,
-     "dv_mps_lower": 9.375,
+     "dv_mps": 89.0625,
+     "dv_mps_lower": 88.28125,
      "dir_gcrf": [
-      0.1943655717688171,
-      0.6196680704752637,
-      0.7604166666666666
+      -0.49231500888437546,
+      -0.6552804171366124,
+      -0.5729166666666667
      ],
      "burn_h": 0.0,
-     "arrival_h": 34.0,
-     "sample_index": 203,
+     "arrival_h": 33.0,
+     "sample_index": 555,
      "note": "sampled minimum along one direction/epoch (upper bound on the true optimum)"
     },
     "l2_gateway": {
      "region": "l2_gateway",
-     "dv_mps": 38.75,
-     "dv_mps_lower": 37.8125,
+     "dv_mps": 99.21875,
+     "dv_mps_lower": 98.4375,
      "dir_gcrf": [
-      -0.8857679188436979,
-      0.4545614715825619,
-      0.09375
+      -0.9004141992100434,
+      0.23734629324363096,
+      0.36458333333333337
      ],
      "burn_h": 0.0,
-     "arrival_h": 154.0,
-     "sample_index": 427,
+     "arrival_h": 135.0,
+     "sample_index": 510,
      "note": "sampled minimum along one direction/epoch (upper bound on the true optimum)"
     }
    },
-   "n_terminated": 0
+   "n_terminated": 0,
+   "gateway_diagnostics": {
+    "l1_gateway": {
+     "libration_point": "L1",
+     "far_realm": "Earth realm",
+     "n_samples": 1728,
+     "n_transit": 24,
+     "n_enter_ball": 1687,
+     "n_cross_plane_in_ball": 1492,
+     "n_cross_and_return": 1468,
+     "n_reach_far_realm": 65,
+     "n_far_realm_other_route": 41,
+     "other_route_min_crossing_km": 39528.0,
+     "max_depth_past_plane_km": 18605.0,
+     "closest_km": 433.0,
+     "t_closest_h": 44.0,
+     "closest_dv_mps": 20.0,
+     "nominal_closest_km": 4106.0,
+     "nominal_t_closest_h": 44.0,
+     "radius_km": 19220.0,
+     "realm_margin_km": 19220.0,
+     "definition": "transit = enters the neck ball from one realm proper, crosses the plane inside it and reaches the other realm proper (|x - x_L| > margin) with C < C_L; counts are samples (not rays)"
+    },
+    "l2_gateway": {
+     "libration_point": "L2",
+     "far_realm": "exterior realm",
+     "n_samples": 1728,
+     "n_transit": 3,
+     "n_enter_ball": 154,
+     "n_cross_plane_in_ball": 31,
+     "n_cross_and_return": 28,
+     "n_reach_far_realm": 24,
+     "n_far_realm_other_route": 21,
+     "other_route_min_crossing_km": 50387.0,
+     "max_depth_past_plane_km": 17372.0,
+     "closest_km": 283.0,
+     "t_closest_h": 160.0,
+     "closest_dv_mps": 50.0,
+     "nominal_closest_km": 40730.0,
+     "nominal_t_closest_h": 168.0,
+     "radius_km": 19220.0,
+     "realm_margin_km": 19220.0,
+     "definition": "transit = enters the neck ball from one realm proper, crosses the plane inside it and reaches the other realm proper (|x - x_L| > margin) with C < C_L; counts are samples (not rays)"
+    }
+   },
+   "gateway_definition": "neck transit (reachability/regions.py): enter the ball of 0.05 nd around L1/L2 from one realm proper, cross the plane x = x_L inside it and reach the other realm proper (|x - x_L| > 0.05 nd) with C < C_L; grazes, plane dips that return and passages unresolved at the horizon are not transits"
   },
   "truth_geometry": {
    "min_dist_to_L1_km": 260.0,
@@ -2183,5 +2270,5 @@
  },
  "n_events": 33,
  "n_frames": 145,
- "bundle_bytes": 3670228
+ "bundle_bytes": 3693084
 }

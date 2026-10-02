@@ -404,6 +404,22 @@ class Catalog:
         tr.build_time_s = time.perf_counter() - t_start
         return tr
 
+    def truth_window_s(self, obj_id: str) -> tuple[float, float]:
+        """``(t_min, t_max)`` TDB seconds for which a state of ``obj_id`` can be served.
+
+        Notional objects: the catalog epoch ± :data:`MAX_EXTENSION_S` (the cached window plus deterministic
+        on-demand extension); Horizons objects: the cached ephemeris span.  Routes check requested windows
+        against this and answer 400 instead of letting the extension's ``ValueError`` surface as a 500."""
+        e = self.get(obj_id)
+        if e.notional is not None:
+            return self.epoch_s - MAX_EXTENSION_S, self.epoch_s + MAX_EXTENSION_S
+        assert e.horizons is not None
+        return float(e.horizons.t0), float(e.horizons.t1)
+
+    def truth_window_utc(self, obj_id: str) -> list[str]:
+        """:meth:`truth_window_s` as two ISO UTC strings (trailing Z)."""
+        return [tdb_jd_to_utc_iso(tdb_s_to_jd(t))[:19] + "Z" for t in self.truth_window_s(obj_id)]
+
     def truth_grid(self, obj_id: str) -> Trajectory:
         """10-minute-grid GCRF :class:`Trajectory` of a notional object over the cached window."""
         return self.truth(obj_id).grid()
@@ -475,7 +491,8 @@ class Catalog:
                 d["kepler_moon"] = o.kepler.as_dict() if o.kepler else None
         else:
             ho = e.horizons
-            d.update(horizons_id=ho.id, span_utc=list(ho.span), regime=ho.regime, n_samples=len(ho),
+            d.update(horizons_id=ho.id, span_utc=list(ho.span), supported_window_utc=self.truth_window_utc(obj_id),
+                     regime=ho.regime, n_samples=len(ho),
                      interp_leave_one_out_km=ho.metadata.get("interp_leave_one_out_max_km"))
         if with_epoch_state:
             s = self.epoch_state(obj_id)
@@ -488,6 +505,10 @@ class Catalog:
                 d["truth"] = {
                     "model": "DE440s Earth+Moon+Sun point masses + cannonball SRP",
                     "window_tdb_s": [tr.t_min, tr.t_max],
+                    "supported_window_tdb_s": list(self.truth_window_s(obj_id)),
+                    "supported_window_utc": self.truth_window_utc(obj_id),
+                    "supported_window_note": "states (and synthetic observations / OD runs) are served inside the catalog "
+                                             f"epoch +/- {MAX_EXTENSION_S / DAY_S:.0f} days by deterministic extension of the cached arc",
                     "grid_s": TRUTH_GRID_S,
                     "build_time_s": round(tr.build_time_s, 3),
                     "ephem_fit": tr.fit_info,

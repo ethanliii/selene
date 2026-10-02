@@ -29,8 +29,13 @@ covariance, reachable set, schedule and estimate below is produced by the projec
   anomaly before the glare closes the ground window.
 * **Reachability budget** 100 m/s / 168 h for the alert: an *assumed* analyst planning budget
   bounding the plausible single-maneuver class of a medium bus (the 30 m/s truth lies inside it).
-  Reported fractions are what the sampler returns, including the honest result that the NRHO relay
-  corridor is reachable only at the budget limit.
+  Reported fractions are what the sampler returns, including the honest results that the NRHO relay
+  corridor is reachable only at the budget limit and that an L1 **neck transit** (realm change through
+  the L1 neighbourhood, ``reachability/regions.py``) is reached by only a small share of the sampled
+  burns, at the budget limit; the alert and the brief quote the transit count, the closest approach of
+  the reachable set to L1 and the number of samples that merely dip past the x = x_L1 plane and return
+  (``metrics.reachability.gateway_diagnostics``).  An earlier version of the classifier counted those
+  dips as transits (14 % of rays at >= 10 m/s); that headline was a classification artefact.
 * **Custody thresholds** on the particle-cloud RSS position sigma: CUSTODY < 100 km (the tasking
   module's default), DEGRADED 100–1000 km, LOST > 1000 km.
 * **Covariance re-opening** after a detection (``_Reopen``): the filter prior is widened by the
@@ -64,10 +69,10 @@ from selene.maneuver.synthetic import Burn, generate_measurements, initial_covar
 from selene.objects.catalog import get_catalog
 from selene.od.particles import linear_covariance, propagate_cloud
 from selene.od.ukf import UKFConfig, ukf_run
-from selene.reachability.regions import RegionInputs, default_regions
+from selene.reachability.regions import RegionInputs, default_regions, neck_passage_diagnostics
 from selene.reachability.sampling import ReachabilityConfig, compute_reachability, refine_min_dv
 from selene.reachability.tasking_hint import sensor_hints
-from selene.scenario.brief import generate_brief
+from selene.scenario.brief import gateway_sentence, generate_brief
 from selene.sensors.constraints import angular_separation, illuminated_fraction
 from selene.sensors.observers import DEFAULT_OBSERVERS, observer_state
 from selene.sensors.reasons import AVAILABILITY_REASONS, REASON_NAMES, primary_reason, reason_names
@@ -386,16 +391,22 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
                 if r:
                     refined[st.key] = r
     region_rows = []
+    gateway_diag: dict[str, dict] = {}
     for st in rs.region_stats:
         reg = next(r for r in regions if r.key == st.key)
         min_dv = st.min_dv_mps
         if st.key in refined:
             min_dv = refined[st.key]["dv_mps"]
-        region_rows.append({"key": st.key, "name": st.name, "kind": st.kind, "fraction": _r(st.fraction, 4),
-                            "sample_fraction": _r(st.sample_fraction, 4), "n_hit": int(st.n_hit),
-                            "earliest_h": _r(st.earliest_h, 1), "earliest_nominal_h": _r(st.earliest_nominal_h, 1), "min_dv_mps": _r(min_dv, 1),
-                            "nominal_hits": bool(st.nominal_hits), "newly_reachable": bool(st.newly_reachable),
-                            "why_it_matters": reg.why_it_matters})
+        row = {"key": st.key, "name": st.name, "kind": st.kind, "fraction": _r(st.fraction, 4),
+               "sample_fraction": _r(st.sample_fraction, 4), "n_hit": int(st.n_hit),
+               "earliest_h": _r(st.earliest_h, 1), "earliest_nominal_h": _r(st.earliest_nominal_h, 1), "min_dv_mps": _r(min_dv, 1),
+               "nominal_hits": bool(st.nominal_hits), "newly_reachable": bool(st.newly_reachable),
+               "why_it_matters": reg.why_it_matters}
+        if reg.kind == "gateway":
+            # what the reachable set does at the neck even when nothing transits: closest approach, plane crossings that
+            # return, realm changes far from the libration point (the brief and the alert quote these numbers verbatim)
+            row["diagnostics"] = gateway_diag[st.key] = _gateway_diagnostics(rs, reg, st)
+        region_rows.append(row)
     timing["reachability_s"] = time.perf_counter() - t_a
 
     # ---- custody decay from the detection posterior -> t_lost ------------------------------
@@ -823,7 +834,12 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
                       "reopen_events": reopen2.events},
         "reachability": {"dv_budget_mps": cfg.dv_budget_mps, "horizon_h": cfg.horizon_h, "n_samples": int(rs.n_samples),
                          "n_dirs": int(rcfg.n_dirs), "burn_epochs_h": list(burn_epochs), "t_ref_utc": _utc(t_pre),
-                         "regions": region_rows, "refined_min_dv": refined, "n_terminated": int(rs.meta["n_terminated"])},
+                         "regions": region_rows, "refined_min_dv": refined, "n_terminated": int(rs.meta["n_terminated"]),
+                         "gateway_diagnostics": gateway_diag,
+                         "gateway_definition": "neck transit (reachability/regions.py): enter the ball of 0.05 nd around L1/L2 from one "
+                                               "realm proper, cross the plane x = x_L inside it and reach the other realm proper "
+                                               "(|x - x_L| > 0.05 nd) with C < C_L; grazes, plane dips that return and passages "
+                                               "unresolved at the horizon are not transits"},
         "truth_geometry": {"min_dist_to_L1_km": _r(d_l1_min_km, 0), "t_min_dist_to_L1_utc": _utc(t_l1_min),
                            "min_dist_to_L1_grid_km": _r(float(d_l1_km.min()), 0),
                            "min_dist_to_L1_note": "closest approach refined by bounded 1-D minimisation on the dense truth solution "
@@ -874,6 +890,29 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
 
 
 # ---------------------------------------------------------------------------
+def _gateway_diagnostics(rs, reg, st) -> dict:
+    """Neck diagnostics of a reachable set for one gateway region (plain numbers for the alert / brief)."""
+    L_rot = np.asarray(reg.params["center_rot_nd"], dtype=np.float64)
+    radius = float(reg.params["radius_nd"])
+    margin = float(reg.params.get("realm_margin_nd", radius))
+    dg = neck_passage_diagnostics(rs.states_rot[..., :3], L_rot, radius, margin, rs.active, rs.hits[reg.key])
+    k = dg.get("closest_epoch_index")
+    nominal_d = np.linalg.norm(rs.nominal_rot[:, :3] - L_rot, axis=1) * L_STAR
+    return {"libration_point": reg.name.split()[0], "far_realm": "Earth realm" if reg.key == "l1_gateway" else "exterior realm",
+            "n_samples": int(dg["n"]), "n_transit": int(st.n_hit),
+            "n_enter_ball": int(dg["n_enter_ball"]), "n_cross_plane_in_ball": int(dg["n_cross_plane_in_ball"]),
+            "n_cross_and_return": int(dg["n_cross_and_return"]), "n_reach_far_realm": int(dg["n_reach_far_realm"]),
+            "n_far_realm_other_route": int(dg["n_far_realm_other_route"]),
+            "other_route_min_crossing_km": _r(dg["other_route_min_crossing_km"], 0),
+            "max_depth_past_plane_km": _r(dg["max_depth_past_plane_km"], 0),
+            "closest_km": _r(dg["closest_km"], 0), "t_closest_h": _r(rs.t_h[k], 1) if k is not None else None,
+            "closest_dv_mps": _r(rs.dv_mps[dg["closest_sample"]], 1) if dg.get("closest_sample") is not None else None,
+            "nominal_closest_km": _r(float(nominal_d.min()), 0), "nominal_t_closest_h": _r(rs.t_h[int(np.argmin(nominal_d))], 1),
+            "radius_km": _r(radius * L_STAR, 0), "realm_margin_km": _r(margin * L_STAR, 0),
+            "definition": "transit = enters the neck ball from one realm proper, crosses the plane inside it and reaches the other "
+                          "realm proper (|x - x_L| > margin) with C < C_L; counts are samples (not rays)"}
+
+
 def _tasking_metrics(reacq, attempts, t0, n_tiles, n_follow, cfg) -> dict:
     base = {"search_tiles_used_by_scheduler": n_tiles, "search_budget_note": "mosaic budget per tasked slot shared by the scheduler's "
             "acquisition model and the truth verification (a look acquires iff the truth is within the radius min(p90 spread, "
@@ -1062,11 +1101,13 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
             relay_txt = (f" The corridor of the notional allied relay ({RELAY}, 9:2 NRHO) is not reached by any of the {n_rays} sampled rays within "
                          f"this budget and horizon (at or below the sampling resolution: a marginal hit at the budget limit cannot be excluded).")
         relay_txt += " Recommendation: increased custody on the object and conjunction screening for the relay; no closer approach is implied."
+    gateway_txt = " " + " ".join(gateway_sentence(r, cfg.horizon_h) for r in region_rows if r["kind"] == "gateway")
     add(t_alert, "reachability_alert", "warn",
         f"REACHABILITY (awareness only): from the last good state with an assumed {cfg.dv_budget_mps:.0f} m/s budget over {cfg.horizon_h:.0f} h, "
-        f"{PROTAGONIST} could newly enter: " + "; ".join(parts) + "." + routine_txt + relay_txt, PROTAGONIST,
+        f"{PROTAGONIST} could newly enter: " + "; ".join(parts) + "." + routine_txt + gateway_txt + relay_txt, PROTAGONIST,
         {"dv_budget_mps": cfg.dv_budget_mps, "horizon_h": cfg.horizon_h, "regions": region_rows,
          "newly_reachable": [r["key"] for r in new], "on_unperturbed_path": [r["key"] for r in routine],
+         "gateway_diagnostics": {r["key"]: r.get("diagnostics") for r in region_rows if r["kind"] == "gateway"},
          "show_layers": ["reachable"]}, rank=R_ALERT)
     # tasking
     tk = metrics["tasking"]

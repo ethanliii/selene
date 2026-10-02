@@ -26,22 +26,46 @@ Membership tests take a :class:`RegionInputs` bundle holding the same points in 
 
 Definitions (defaults; every number is a configurable parameter of :func:`default_regions`)
 -------------------------------------------------------------------------------------------
-``l1_gateway``        **Neck transit**, not proximity: the path enters the ball |r_rot − L1| <
-                      0.05 nd (≈ 19 200 km, the neck aperture) on one side of the plane x = x_L1
-                      and leaves it on the other side, i.e. it passes from the lunar realm to the
-                      Earth realm (or back) through the L1 neck.  A passage still inside the ball
-                      at the end of the horizon counts if it has already crossed the plane.
+``l1_gateway``        **Neck transit**, not proximity.  Three conditions, all on the time series of
+                      one trajectory (see :func:`transit_mask`):
+
+                      1. *passage*: the path enters the ball |r_rot − L1| < R_neck (default
+                         0.05 nd ≈ 19 200 km);
+                      2. *realm change*: the last **definite realm** before the passage and the
+                         first definite realm after it differ.  Realms are defined with a
+                         hysteresis margin δ (default δ = R_neck): *Earth realm* x < x_L1 − δ,
+                         *lunar realm* x_L1 + δ < x < x_L2 − δ, *exterior realm* x > x_L2 + δ;
+                         the bands |x − x_L| ≤ δ around the two planes are the neck zones, where
+                         the realm is undetermined and the previous definite realm is kept.
+                         A passage that is unresolved at the end of the horizon (the path is
+                         still in the neck zone) is **not** a transit — it is reported as an
+                         approach by the callers (closest approach, plane crossing depth);
+                      3. *energy*: the CR3BP-equivalent Jacobi constant on the passage is below
+                         C(L1) (+ a 5e-3 slack for the ±1e-3/week wander of the ephemeris
+                         model's C), i.e. the neck is energetically open.  Skipped when no
+                         velocities are supplied (constructed position-only paths).
+
                       Point-wise inputs (no time series) fall back to the proximity ball.
-                      Why not the ball alone: large distant retrograde orbits straddle L1 and L2
-                      geometrically — the demo DRO (perilune 63 700 km) sweeps through both 0.05 nd
-                      balls every revolution, comes within 1 400 km of L1 and even dips 4 000 km past
-                      the x = x_L1 plane on the Earth side — while being a stable, non-transiting
-                      orbit; proximity therefore flagged the quiet orbit as "entering the gateway"
-                      twice a month.  Realm change is the quantity that matters for awareness
-                      (Koon-Lo-Marsden-Ross ch. 2-3: transit vs non-transit orbits at a neck).
-``l2_gateway``        Same transit test at the L2 neck (lunar realm <-> exterior realm).  The L2
-                      neck connects the lunar realm to translunar/heliocentric space and hosts
-                      far-side relays and halo/NRHO traffic.
+                      Why this strictness (all numbers measured, ``tests/test_reachability_regions.py``):
+                      large distant retrograde orbits straddle L1 and L2 geometrically — the demo
+                      DRO (perilune 63 700 km, C ≈ 2.95) sweeps through both 0.05 nd balls every
+                      revolution and comes within ~1 000 km of the x = x_L1 plane (its CR3BP
+                      reference crosses it by 5 700 km) while being a stable, non-transiting orbit.
+                      A plain plane-crossing test inside the ball was therefore noise: 10-20 m/s
+                      perturbations of the DRO dip ~2 000 km past the plane and leave the ball on
+                      the "Earth side" without ever leaving the lunar vicinity (none reached
+                      x < x_L1 − 0.05), and the first version of this classifier called 14 % of
+                      the demo's reachable rays "L1 gateway transits".  The hysteresis realms make
+                      a transit mean what an analyst means: the object was in the lunar realm
+                      proper and is now in the Earth realm proper, having passed the L1
+                      neighbourhood (Koon-Lo-Marsden-Ross ch. 2-3, transit vs non-transit orbits).
+                      Caveat stated honestly: at C ≈ 2.95 (< C(L4) ≈ 2.988) there is no forbidden
+                      region at all, so the "neck" at DRO energies is a geometric neighbourhood,
+                      not an energetic bottleneck; a path that leaves the lunar realm far from L1
+                      (|r − L1| > R_neck) is not an *L1 gateway* transit under this definition.
+``l2_gateway``        Same transit test at the L2 neck (lunar realm <-> exterior realm, energy gate
+                      C < C(L2)).  The L2 neck connects the lunar realm to translunar/heliocentric
+                      space and hosts far-side relays and halo/NRHO traffic.
 ``nrho_corridor``     within ``tube_km`` (default 10 000 km) of any point of the 9:2 synodic
                       resonant L2 southern NRHO from the orbit library (``NRHO_9:2`` record).
                       This is the Gateway/relay corridor; an unidentified object entering it is
@@ -108,6 +132,9 @@ __all__ = [
     "classify",
     "nrho_reference_samples",
     "transit_mask",
+    "realm_labels",
+    "neck_passage_diagnostics",
+    "GATEWAY_JACOBI_TOL",
     "jacobi_rot",
     "C_L1",
     "C_L2",
@@ -224,54 +251,93 @@ def _sphere(center: np.ndarray, radius_nd: float):
     return f
 
 
-def transit_mask(inside: np.ndarray, side: np.ndarray) -> np.ndarray:
-    """Neck-transit epochs from per-epoch ``inside`` (M, T bool: inside the neck ball) and ``side``
-    (M, T in {-1, 0, +1, nan}: sign of x − x_L; nan after a sample terminated).
+#: slack on the Jacobi energy gate: the CR3BP-equivalent C of an ephemeris-model trajectory wanders by ~1e-3 per
+#: week (regions module docstring), so a geometric transit is not discarded for a few 1e-3 of apparent energy
+GATEWAY_JACOBI_TOL: float = 5e-3
 
-    A *passage* is a maximal run of consecutive inside epochs.  It is a transit when the side at
-    the epoch before the run differs from the side at the epoch after it (realm change), or, for
-    a passage unresolved at the end (horizon / termination), when a plane crossing already
-    happened inside the run.  Returns (M, T) bool: the epochs of transiting passages only (so the
-    first True epoch is the neck entry).  Fully vectorised: runs are numbered with a cumulative
-    sum of run-start marks and reduced with ``np.logical_or.at``.
+
+def realm_labels(x_rel: np.ndarray, margin_nd: float) -> np.ndarray:
+    """Per-epoch realm label relative to one neck plane: +1 beyond ``x_rel > +margin`` (the Moon side of L1,
+    the exterior side of L2), −1 beyond ``x_rel < −margin``, 0 inside the neck zone |x_rel| ≤ margin, nan
+    where ``x_rel`` is nan (terminated sample)."""
+    x = np.asarray(x_rel, float)
+    with np.errstate(invalid="ignore"):
+        lab = np.where(x > margin_nd, 1.0, np.where(x < -margin_nd, -1.0, 0.0))
+    return np.where(np.isfinite(x), lab, np.nan)
+
+
+def _ffill_definite(lab: np.ndarray) -> np.ndarray:
+    """(M, T): the last definite (non-zero, finite) label at or before each epoch; nan if none yet."""
+    M, T = lab.shape
+    definite = np.isfinite(lab) & (lab != 0)
+    idx = np.where(definite, np.arange(T)[None, :], -1)
+    idx = np.maximum.accumulate(idx, axis=1)
+    out = np.full((M, T), np.nan)
+    ok = idx >= 0
+    rows = np.broadcast_to(np.arange(M)[:, None], (M, T))
+    out[ok] = lab[rows[ok], idx[ok]]
+    return out
+
+
+def transit_mask(inside: np.ndarray, x_rel: np.ndarray, margin_nd: float,
+                 jacobi: Optional[np.ndarray] = None, c_open: Optional[float] = None,
+                 c_tol: float = GATEWAY_JACOBI_TOL) -> np.ndarray:
+    """Neck-transit epochs of ``M`` trajectories on ``T`` consecutive epochs (see the module docstring).
+
+    ``inside`` (M, T) bool: inside the neck ball; ``x_rel`` (M, T): x − x_L in the rotating frame (nan after
+    a sample terminated); ``margin_nd``: realm hysteresis margin δ; ``jacobi`` (M, T, optional): CR3BP-
+    equivalent Jacobi constant, gated against ``c_open`` (+ ``c_tol``) on the passage epochs.
+
+    A *passage* is a maximal run of consecutive inside epochs.  It is a transit when (1) the last definite
+    realm (|x_rel| > δ) before the run and the first definite realm after it both exist and differ, and
+    (2) the minimum C over the run is below ``c_open + c_tol`` (when ``jacobi`` is given).  Passages that
+    are unresolved at either end (the trajectory starts in the neck zone, or ends there at the horizon or
+    at a termination) are not transits.  Returns (M, T) bool: the epochs of transiting passages only (so
+    the first True epoch is the neck entry).  Fully vectorised: runs are numbered with a cumulative sum of
+    run-start marks and reduced with ``np.minimum.at``.
     """
     inside = np.asarray(inside, bool)
-    side = np.asarray(side, float)
+    x_rel = np.asarray(x_rel, float)
     M, T = inside.shape
     if T == 0 or not inside.any():
         return np.zeros_like(inside)
+    lab = realm_labels(x_rel, margin_nd)
+    before = _ffill_definite(lab)                                   # last definite realm at/before each epoch
+    after = _ffill_definite(lab[:, ::-1])[:, ::-1]                  # first definite realm at/after each epoch
     pad = np.zeros((M, T + 1), dtype=np.int8)
     pad[:, :T] = inside
-    d = np.diff(pad, axis=1, prepend=0)                    # (M, T+1): +1 run start, -1 run end (exclusive)
+    d = np.diff(pad, axis=1, prepend=0)                             # (M, T+1): +1 run start, -1 run end (exclusive)
     r_s, k_s = np.where(d == 1)
-    r_e, k_e = np.where(d == -1)                           # same count and order as the starts
+    r_e, k_e = np.where(d == -1)                                    # same count and order as the starts
     n_runs = r_s.size
-    run_id = np.cumsum((d[:, :T] == 1).ravel()).reshape(M, T)   # 1-based global run number at/after each start
-    # side before the run (entry side); a sample that STARTS inside the ball uses its first side
-    k_prev = np.where(k_s > 0, k_s - 1, k_s)
-    entry = side[r_s, k_prev]
-    first = side[r_s, k_s]
-    entry = np.where(np.isfinite(entry) & (entry != 0), entry, first)
-    # side after the run (exit side); nan when the run reaches the end or the sample terminated
-    k_next = np.minimum(k_e, T - 1)
-    exit_side = np.where(k_e < T, side[r_s, k_next], np.nan)
-    resolved = np.isfinite(exit_side) & (exit_side != 0)
-    realm_change = resolved & (exit_side != entry)
-    # plane crossing inside the run (for unresolved passages)
+    run_id = np.cumsum((d[:, :T] == 1).ravel()).reshape(M, T)       # 1-based global run number at/after each start
+    entry = np.where(k_s > 0, before[r_s, np.maximum(k_s - 1, 0)], np.nan)
+    exit_ = np.where(k_e < T, after[r_s, np.minimum(k_e, T - 1)], np.nan)
+    transit_run = np.isfinite(entry) & np.isfinite(exit_) & (entry != exit_)
+    # the plane x = x_L must be crossed INSIDE the ball during the passage (a graze of the ball followed by a realm
+    # change far from the libration point is not a transit of *this* neck)
     entry_at = np.zeros((M, T))
-    entry_at[inside] = entry[run_id[inside] - 1]
-    crossed = inside & np.isfinite(side) & (side != 0) & (side != entry_at)
+    entry_at[inside] = np.where(np.isfinite(entry), entry, 0.0)[run_id[inside] - 1]
+    with np.errstate(invalid="ignore"):
+        crossed = inside & (entry_at != 0) & (np.sign(x_rel) == -entry_at)
     crossed_run = np.zeros(n_runs, dtype=bool)
     np.logical_or.at(crossed_run, run_id[crossed] - 1, True)
-    transit_run = realm_change | (~resolved & crossed_run)
+    transit_run &= crossed_run
+    if jacobi is not None and c_open is not None:
+        C = np.asarray(jacobi, float)
+        c_run = np.full(n_runs, np.inf)
+        sel = inside & np.isfinite(C)
+        np.minimum.at(c_run, run_id[sel] - 1, C[sel])
+        transit_run &= c_run < float(c_open) + float(c_tol)
     out = np.zeros_like(inside)
     out[inside] = transit_run[run_id[inside] - 1]
     return out
 
 
-def _neck_transit(center: np.ndarray, radius_nd: float):
-    """Gateway membership: neck transit through the ball of ``radius_nd`` around ``center`` (see the
-    module docstring); proximity-ball fallback for point-wise inputs."""
+def _neck_transit(center: np.ndarray, radius_nd: float, margin_nd: float, c_open: float, c_tol: float = GATEWAY_JACOBI_TOL):
+    """Gateway membership: neck transit through the ball of ``radius_nd`` around ``center`` with realm margin
+    ``margin_nd`` and energy gate ``c_open`` (see the module docstring); proximity-ball fallback for
+    point-wise inputs."""
     x_l = float(center[0])
     ball = _sphere(center, radius_nd)
 
@@ -282,9 +348,65 @@ def _neck_transit(center: np.ndarray, radius_nd: float):
         P = np.asarray(inp.pos_rot, float).reshape(-1, shape[-1], 3)
         with np.errstate(invalid="ignore"):
             inside = np.linalg.norm(P - center, axis=-1) < radius_nd      # nan -> False
-            side = np.sign(P[..., 0] - x_l)
-        return transit_mask(inside, side).reshape(shape)
+        C = None
+        if inp.vel_rot is not None:
+            with np.errstate(invalid="ignore"):
+                C = np.asarray(inp.jacobi, float).reshape(-1, shape[-1])
+        return transit_mask(inside, P[..., 0] - x_l, margin_nd, C, c_open, c_tol).reshape(shape)
     return f
+
+
+def neck_passage_diagnostics(pos_rot: np.ndarray, center: np.ndarray, radius_nd: float, margin_nd: float,
+                             active: Optional[np.ndarray] = None, transit: Optional[np.ndarray] = None) -> dict:
+    """What a set of trajectories does at one neck, for honest reporting when little or nothing transits.
+
+    ``pos_rot`` (N, T, 3) rotating-frame positions, ``active`` (N, T) bool mask (default all), ``transit`` (N, T)
+    bool output of the gateway region (default: none).  Returns the closest approach to the libration point over
+    all active epochs (km, with sample and epoch index), how many trajectories enter the ball, cross the plane
+    x = x_L inside the ball, dip past the plane inside the ball and come back to the realm they started from
+    (``n_cross_and_return``), reach the far realm proper at all (``n_reach_far_realm``), reach it without a
+    counted transit (``n_far_realm_other_route``) and, for those, the smallest distance to the libration point at
+    which they crossed the plane toward the far realm (``other_route_min_crossing_km``); plus the deepest
+    excursion past the plane inside the ball (km)."""
+    P = np.asarray(pos_rot, float)
+    N, T = P.shape[:2]
+    act = np.ones((N, T), bool) if active is None else np.asarray(active, bool)
+    tr_any = np.zeros(N, bool) if transit is None else np.asarray(transit, bool).reshape(N, T).any(axis=1)
+    with np.errstate(invalid="ignore"):
+        d = np.where(act, np.linalg.norm(P - center, axis=-1), np.nan)
+        x_rel = np.where(act, P[..., 0] - float(center[0]), np.nan)
+    inside = d < radius_nd
+    lab = realm_labels(x_rel, margin_nd)
+    start = _ffill_definite(lab[:, ::-1])[:, ::-1][:, 0]     # the realm each trajectory starts from: its first definite label
+    far = -start                                             # the realm on the other side of the plane
+    with np.errstate(invalid="ignore"):
+        past = np.isfinite(x_rel) & (np.sign(x_rel) == far[:, None]) & (x_rel != 0)      # on the far side of the plane
+        crossed = inside & past
+        depth = np.where(crossed, -x_rel * start[:, None], 0.0)                          # positive = past the plane
+        reach_far = np.isfinite(lab) & (lab == far[:, None]) & np.isfinite(start)[:, None]
+    cross_any = crossed.any(axis=1)
+    far_any = reach_far.any(axis=1)
+    other = far_any & ~tr_any
+    out = {"n": int(N), "n_enter_ball": int(inside.any(axis=1).sum()), "n_cross_plane_in_ball": int(cross_any.sum()),
+           "n_cross_and_return": int((cross_any & ~far_any).sum()),
+           "n_reach_far_realm": int(far_any.sum()), "n_far_realm_other_route": int(other.sum()),
+           "max_depth_past_plane_km": float(np.nanmax(depth) * L_STAR) if crossed.any() else 0.0,
+           "other_route_min_crossing_km": None}
+    if other.any():
+        # plane crossings toward the far side: epoch k with sign(x_rel[k]) == far and sign(x_rel[k-1]) == start
+        prev_start = np.zeros_like(past)
+        with np.errstate(invalid="ignore"):
+            prev_start[:, 1:] = np.isfinite(x_rel[:, :-1]) & (np.sign(x_rel[:, :-1]) == start[:, None])
+        xing = past & prev_start & other[:, None]
+        dd = np.where(xing, d, np.nan)
+        if np.isfinite(dd).any():
+            out["other_route_min_crossing_km"] = float(np.nanmin(dd) * L_STAR)
+    if np.isfinite(d).any():
+        i, k = np.unravel_index(int(np.nanargmin(d)), d.shape)
+        out.update(closest_km=float(d[i, k] * L_STAR), closest_sample=int(i), closest_epoch_index=int(k))
+    else:
+        out.update(closest_km=None, closest_sample=None, closest_epoch_index=None)
+    return out
 
 
 def _tube(points: np.ndarray, radius_nd: float):
@@ -354,6 +476,8 @@ def _impact():
 def default_regions(
     gateway_radius_nd: float = 0.05,
     nrho_tube_km: float = 10_000.0,
+    realm_margin_nd: Optional[float] = None,
+    gateway_jacobi_tol: float = GATEWAY_JACOBI_TOL,
     south_pole_lat_deg: float = -60.0,
     south_pole_max_dist_km: float = 20_000.0,
     llo_max_alt_km: float = 5_000.0,
@@ -363,32 +487,41 @@ def default_regions(
     escape_r_min_nd: float = 1.3,
     nrho_samples: int = 600,
 ) -> list[Region]:
-    """The default region set (see module docstring for definitions and rationale)."""
+    """The default region set (see module docstring for definitions and rationale).
+
+    ``realm_margin_nd`` is the realm hysteresis margin δ of the gateway transit test (default: the neck radius)."""
     nrho_pts = nrho_reference_samples(nrho_samples)
     tube_nd = nrho_tube_km / L_STAR
+    margin = float(gateway_radius_nd if realm_margin_nd is None else realm_margin_nd)
+    gw_desc = ("Neck transit: the path enters the ball of radius {r:.3f} nd (~{rk:,.0f} km) around the Earth-Moon {L} point "
+               "having last been in the {a} realm proper (x {sa} x_{L} {pm} {m:.3f} nd, rotating frame) and next reaches the {b} "
+               "realm proper (x {sb} x_{L} {mp} {m:.3f} nd), or the reverse, with a CR3BP-equivalent Jacobi constant below C({L}) "
+               "= {c:.4f} on the passage (neck energetically open). Grazing the ball, dipping past the plane and returning to "
+               "the same realm (what a large DRO and its small perturbations do), or ending the horizon inside the neck zone, "
+               "does not count.")
+    gw_params = lambda L, c: {"center_rot_nd": L.tolist(), "radius_nd": gateway_radius_nd, "radius_km_approx": gateway_radius_nd * L_STAR,  # noqa: E731
+                              "membership": "neck_transit", "plane_x_nd": float(L[0]), "realm_margin_nd": margin,
+                              "realm_margin_km_approx": margin * L_STAR, "energy_gate": {"C_open": c, "tol": gateway_jacobi_tol},
+                              "unresolved_passages_count": False}
     regions = [
         Region(
             "l1_gateway", "L1 gateway", "gateway",
-            f"Neck transit: the path enters the ball of radius {gateway_radius_nd:.3f} nd (~{gateway_radius_nd * L_STAR:,.0f} km) "
-            "around the Earth-Moon L1 point on one side of the plane x = x_L1 (rotating frame) and leaves it on the other, "
-            "i.e. it changes realm (lunar <-> Earth) through the L1 neck. Grazing the ball and returning to the same realm "
-            "(what a large DRO does every revolution) does not count.",
+            gw_desc.format(r=gateway_radius_nd, rk=gateway_radius_nd * L_STAR, L="L1", a="lunar", sa=">", pm="+", m=margin,
+                           b="Earth", sb="<", mp="-", c=C_L1),
             "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an "
             "object that can transit it can reach the Moon-Earth corridor and the lunar vicinity.",
-            {"center_rot_nd": L1_ROT.tolist(), "radius_nd": gateway_radius_nd, "radius_km_approx": gateway_radius_nd * L_STAR,
-             "membership": "neck_transit", "plane_x_nd": float(L1_ROT[0])},
-            _neck_transit(L1_ROT, gateway_radius_nd),
+            gw_params(L1_ROT, C_L1),
+            _neck_transit(L1_ROT, gateway_radius_nd, margin, C_L1, gateway_jacobi_tol),
             {"type": "sphere", "center_rot_nd": L1_ROT.tolist(), "radius_nd": gateway_radius_nd, "membership": "neck_transit"},
         ),
         Region(
             "l2_gateway", "L2 gateway", "gateway",
-            f"Neck transit: the path enters the ball of radius {gateway_radius_nd:.3f} nd (~{gateway_radius_nd * L_STAR:,.0f} km) "
-            "around the Earth-Moon L2 point on one side of the plane x = x_L2 and leaves it on the other (lunar <-> exterior realm).",
+            gw_desc.format(r=gateway_radius_nd, rk=gateway_radius_nd * L_STAR, L="L2", a="lunar", sa="<", pm="-", m=margin,
+                           b="exterior", sb=">", mp="+", c=C_L2),
             "The L2 neck is the doorway to translunar space and the home of far-side relays and halo/NRHO "
             "traffic; it is also the hardest region to observe from Earth (behind the Moon, lunar glare).",
-            {"center_rot_nd": L2_ROT.tolist(), "radius_nd": gateway_radius_nd, "radius_km_approx": gateway_radius_nd * L_STAR,
-             "membership": "neck_transit", "plane_x_nd": float(L2_ROT[0])},
-            _neck_transit(L2_ROT, gateway_radius_nd),
+            gw_params(L2_ROT, C_L2),
+            _neck_transit(L2_ROT, gateway_radius_nd, margin, C_L2, gateway_jacobi_tol),
             {"type": "sphere", "center_rot_nd": L2_ROT.tolist(), "radius_nd": gateway_radius_nd, "membership": "neck_transit"},
         ),
         Region(

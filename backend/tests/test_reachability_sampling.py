@@ -186,35 +186,58 @@ def test_monotone_in_horizon():
 
 
 def test_l1_gateway_reached_by_an_explicitly_constructed_burn():
-    """Find the cheapest sampled burn to L1 from the DRO over 168 h, refine it, then rebuild that single
-    burn explicitly and verify it enters the L1 gateway sphere."""
-    cfg = ReachabilityConfig(dv_budget_mps=150.0, horizon_h=168.0, n_dirs=100)
-    rs = reachability_for_object("SIM-DRO-01", cfg=cfg)
+    """From the demo's pre-burn state (2026-02-25T08:00Z, the DRO heading into its near-side pass) find the cheapest
+    sampled burn that TRANSITS the L1 neck within 168 h under a 100 m/s budget, refine it, rebuild that single burn
+    explicitly and verify the transit is genuine: the sample leaves the lunar realm proper and reaches the Earth realm
+    proper (x < x_L1 - 0.05 nd) after passing through the neck ball.  Measured: from the catalog epoch (2026-03-01)
+    no sampled burn up to 150 m/s transits within a week (closest approach ~3 000 km, 9 of 2 800 samples cross the
+    plane inside the ball and return), so the result depends on the orbit phase and is reported as such."""
+    from selene.reachability.regions import L1_ROT
+    from selene.time import seconds_since_j2000_tdb
+
+    t_pre = float(seconds_since_j2000_tdb("2026-02-25T08:00:00"))
+    cfg = ReachabilityConfig(dv_budget_mps=100.0, horizon_h=168.0, n_dirs=64, burn_epochs_h=(0.0, 1.0, 2.0))
+    rs = reachability_for_object("SIM-DRO-01", t0_s=t_pre, cfg=cfg)
     st = rs.stats_by_key()["l1_gateway"]
-    assert st.n_hit > 0 and st.newly_reachable, "L1 gateway should be reachable from DRO_019 within 168 h and 150 m/s"
+    assert st.n_hit > 0 and st.newly_reachable, "an L1 neck transit should be reachable from the pre-burn DRO state within 168 h and 100 m/s"
+    xl = L1_ROT[0]
+    hit = rs.hits["l1_gateway"].any(axis=1)
+    for i in np.flatnonzero(hit):
+        k = int(np.argmax(rs.hits["l1_gateway"][i]))
+        tail = rs.states_rot[i, k:, 0][rs.active[i, k:]]
+        assert np.linalg.norm(rs.states_rot[i, k, :3] - L1_ROT) < 0.05          # first hit = inside the neck ball
+        assert tail.min() < xl - 0.05, i                                       # and the sample reaches the Earth realm proper
+        assert rs.states_rot[i, :k, 0].max() > xl + 0.05                        # having come from the lunar realm proper
     ref = refine_min_dv(rs, "l1_gateway")
     assert ref is not None and ref["dv_mps"] <= st.min_dv_mps
-    print(f"Δv to L1 gateway from SIM-DRO-01 (DRO_019): ladder {st.min_dv_mps:.0f} m/s, refined {ref['dv_mps']:.1f} m/s "
-          f"(misses at {ref['dv_mps_lower']:.1f}), burn at +{ref['burn_h']:.0f} h, arrival +{ref['arrival_h']:.1f} h, "
-          f"dir GCRF {np.round(ref['dir_gcrf'], 3).tolist()}")
-    # honesty note: the cheapest hit arrives at the horizon edge, so this figure is horizon-limited;
-    # also report the cheapest sample that arrives with >= 24 h margin
-    fh = rs.first_hit_h["l1_gateway"]
-    margin = np.isfinite(fh) & (fh <= 144.0)
-    if margin.any():
-        j = int(np.argmin(np.where(margin, rs.dv_mps, np.inf)))
-        print(f"  cheapest L1 arrival before +144 h: {rs.dv_mps[j]:.0f} m/s (ladder) arriving +{fh[j]:.1f} h")
+    print(f"L1 neck transit from SIM-DRO-01 at 2026-02-25T08Z: {st.n_hit}/{rs.n_samples} samples, ladder {st.min_dv_mps:.0f} m/s, "
+          f"refined {ref['dv_mps']:.1f} m/s (misses at {ref['dv_mps_lower']:.1f}), burn at +{ref['burn_h']:.0f} h, arrival +{ref['arrival_h']:.1f} h")
     u = np.asarray(ref["dir_gcrf"])
     one = {"dirs": u[None], "dv_mps": np.array([ref["dv_mps"]]), "burn_h": np.array([ref["burn_h"]]),
            "ray": np.array([0]), "n_rays": 1, "magnitudes": np.array([ref["dv_mps"]]), "unit_dirs": u[None]}
     rs1 = compute_reachability(rs.nominal_gcrf[0], rs.t0_s, cfg, "SIM-DRO-01", rs.regions, samples=one)
     assert rs1.stats_by_key()["l1_gateway"].n_hit == 1
     assert np.isclose(rs1.first_hit_h["l1_gateway"][0], ref["arrival_h"])
-    # the 0-Δv nominal never enters L1 over this horizon
+    # the 0-dv nominal never transits over this horizon (it grazes L1 and stays in the lunar realm)
     assert not rs1.nominal_hits["l1_gateway"].any()
     miss = dict(one, dv_mps=np.array([ref["dv_mps_lower"]]), magnitudes=np.array([ref["dv_mps_lower"]]))
     rs0 = compute_reachability(rs.nominal_gcrf[0], rs.t0_s, cfg, "SIM-DRO-01", rs.regions, samples=miss)
     assert rs0.stats_by_key()["l1_gateway"].n_hit == 0
+
+
+def test_no_l1_transit_from_the_catalog_epoch_within_a_week():
+    """Honesty check on the old claim 'L1 gateway reachable from DRO_019 within 168 h and 150 m/s': under the neck-
+    transit definition no sample does it from the catalog epoch; the sampler must report 0 hits and the diagnostics
+    must show what really happens (a few samples cross the plane inside the ball and come back)."""
+    from selene.reachability.regions import L1_ROT, neck_passage_diagnostics
+
+    cfg = ReachabilityConfig(dv_budget_mps=150.0, horizon_h=168.0, n_dirs=48)
+    rs = reachability_for_object("SIM-DRO-01", cfg=cfg)
+    st = rs.stats_by_key()["l1_gateway"]
+    dg = neck_passage_diagnostics(rs.states_rot[..., :3], L1_ROT, 0.05, 0.05, rs.active)
+    print(f"from the catalog epoch, 150 m/s / 168 h: L1 transits {st.n_hit}/{rs.n_samples}; diagnostics {dg}")
+    assert st.n_hit == 0 and st.min_dv_mps is None and st.earliest_h is None
+    assert dg["n_reach_far_realm"] == 0 and dg["n_enter_ball"] > 0 and dg["closest_km"] < 20_000.0
 
 
 def test_lunar_impact_is_flagged_and_masked(dro):

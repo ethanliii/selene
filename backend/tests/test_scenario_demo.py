@@ -209,7 +209,16 @@ def test_reachability_block_is_honest(bundle):
     # gateways are neck TRANSITS (regions.py): the quiet DRO grazes both L1 and L2 every revolution without changing
     # realm, so neither is on the nominal path; what the burn opens is reported with a positive minimum delta-v
     assert l1["nominal_hits"] is False and l2["nominal_hits"] is False
-    assert l1["n_hit"] > 0 and l1["newly_reachable"] and l1["min_dv_mps"] > 0 and l1["earliest_h"] is not None
+    # the transit share is small and only at the budget limit (measured: ~1 % of samples at 100 m/s); whatever the
+    # count, every transit sample must be a genuine realm change and the diagnostics must say what the rest did
+    dg = l1["diagnostics"]
+    assert dg == r["gateway_diagnostics"]["l1_gateway"] and dg["n_samples"] == r["n_samples"] and dg["n_transit"] == l1["n_hit"]
+    assert dg["n_transit"] <= dg["n_reach_far_realm"] and dg["n_enter_ball"] >= dg["n_cross_plane_in_ball"] >= 0
+    assert 0 < dg["closest_km"] < 20_000.0 and dg["t_closest_h"] is not None and dg["nominal_closest_km"] > dg["closest_km"]
+    assert "transit" in r["gateway_definition"] and "realm" in dg["definition"]
+    if l1["n_hit"]:
+        assert l1["newly_reachable"] and l1["min_dv_mps"] >= 50.0 and l1["earliest_h"] is not None
+        assert l1["sample_fraction"] < 0.05                        # a classification artefact once reported 14 % of rays at 10 m/s
     tg = bundle["metrics"]["truth_geometry"]
     # the SIMULATED truth grazes L1 (closest approach refined on the dense solution, well below the hourly-grid value)
     # but stays in the lunar realm: no gateway entry is claimed for it, and the bundle says so explicitly
@@ -222,9 +231,22 @@ def test_reachability_block_is_honest(bundle):
     assert r["dv_budget_mps"] == 100.0 and r["horizon_h"] == 168.0
     alert = _first(bundle["events"], "reachability_alert")
     txt = alert["text"]
-    # the headline lists only regions the burn OPENS; routine geometry of the unperturbed orbit is never flagged as new
-    assert "could newly enter" in txt and "L1 gateway" in txt and f">= {l1['min_dv_mps']:.0f} m/s" in txt
-    assert "l1_gateway" in alert["data"]["newly_reachable"] and alert["data"]["on_unperturbed_path"] == []
+    # the headline lists only regions the burn OPENS; routine geometry of the unperturbed orbit is never flagged as new,
+    # and the gateway sentence states exactly what the data supports (transit count or 'no sampled burn transits', the
+    # closest approach of the set, the plane dips that return)
+    assert "could newly enter" in txt and alert["data"]["on_unperturbed_path"] == []
+    assert f"closest approach of the reachable set to L1 {dg['closest_km']:,.0f} km at +{dg['t_closest_h']:.0f} h" in txt
+    if l1["n_hit"]:
+        assert "l1_gateway" in alert["data"]["newly_reachable"] and f">= {l1['min_dv_mps']:.0f} m/s" in txt
+        assert f"L1 neck: {l1['n_hit']} of {r['n_samples']} sampled burns" in txt and "transit from the lunar realm into the Earth realm" in txt
+    else:
+        assert "l1_gateway" not in alert["data"]["newly_reachable"] and "L1 neck: no sampled burn transits into the Earth realm" in txt
+    assert dg["n_cross_and_return"] + dg["n_far_realm_other_route"] + dg["n_transit"] >= dg["n_cross_plane_in_ball"] - dg["n_far_realm_other_route"]
+    if dg["n_cross_and_return"] > 0:
+        assert f"{dg['n_cross_and_return']} dip past the x = x_L1 plane inside the neck ball" in txt and "not a transit" in txt
+    if dg["n_far_realm_other_route"] > 0:
+        assert f"{dg['n_far_realm_other_route']} reach the Earth realm" in txt
+    assert alert["data"]["gateway_diagnostics"]["l1_gateway"] == dg
     assert "awareness" in txt.lower() and "intent" not in txt.lower().replace("no intent", "")
     # the relay-corridor sentence never flips meaning with the sampling: both 0 and a few rays read as marginal
     assert "sampling resolution" in txt and "no closer approach is implied" in txt
@@ -258,7 +280,12 @@ def test_brief_contents(bundle):
     assert f"{loss['n_frames_available_site_blocked_after_detection']} of the {loss['n_blind_frames_after_detection']} blind hours" in b
     assert "not a glare effect" in b and "sampling resolution" in b
     l1 = next(x for x in m["reachability"]["regions"] if x["key"] == "l1_gateway")
-    assert f"minimum Δv to reach ≈ {l1['min_dv_mps']:.0f} m/s" in b
+    dg = l1["diagnostics"]
+    assert f"closest approach of the reachable set to L1 {dg['closest_km']:,.0f} km" in b     # same sentence as the feed
+    assert ("L1 neck: no sampled burn transits" in b) is (l1["n_hit"] == 0)
+    sp = next(x for x in m["reachability"]["regions"] if x["key"] == "south_pole_approach")
+    if sp["n_hit"] and not sp["nominal_hits"]:
+        assert f"minimum Δv to reach ≈ {sp['min_dv_mps']:.0f} m/s" in b
     tg = m["truth_geometry"]
     assert f"passes {tg['min_dist_to_L1_km']:,.0f} km from L1" in b and "does NOT transit the L1 neck" in b
     assert "## Terms used below" in b and "**tracklet**" in b and b.index("**RTN**") < b.index("## Timeline (UTC)")
