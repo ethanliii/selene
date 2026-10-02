@@ -32,7 +32,8 @@ import type {
 
 export const API_BASE = '/api';
 
-export type BackendStatus = 'unknown' | 'online' | 'offline';
+/** 'partial' = backend reachable but some endpoints are not implemented yet (404) and were served from mock. */
+export type BackendStatus = 'unknown' | 'online' | 'partial' | 'offline';
 
 export class ApiError extends Error {
   constructor(public status: number, public path: string, public body: string) {
@@ -45,6 +46,8 @@ export class ApiError extends Error {
 let status: BackendStatus = 'unknown';
 const listeners = new Set<() => void>();
 function setStatus(s: BackendStatus) {
+  // 'online' never downgrades an already-'partial' session (the missing endpoints are still missing).
+  if (s === 'online' && status === 'partial') return;
   if (s === status) return;
   status = s;
   listeners.forEach((l) => l());
@@ -86,6 +89,12 @@ async function request<T>(path: string, init: RequestInit | undefined, fallback:
       setStatus('offline');
       return fallback();
     }
+    // Route not implemented yet (FastAPI's generic 404 body) → mock for that endpoint, flag the session 'partial'.
+    if (res.status === 404 && /"detail"\s*:\s*"Not Found"/.test(text)) {
+      console.warn(`API ${path} not implemented (404) — using mock data for this endpoint`);
+      setStatus('partial');
+      return fallback();
+    }
     throw new ApiError(res.status, path, text);
   }
   setStatus('online');
@@ -107,18 +116,18 @@ function qs(params: Record<string, string | number | undefined>): string {
 export const api = {
   health: () => get<Health>('/health', () => mock.mockHealth),
 
-  catalogObjects: () => get<CatalogObject[]>('/catalog/objects', () => mock.mockCatalog),
+  catalogObjects: () => get<CatalogObject[]>('/catalog/objects', () => mock.mockCatalog()),
 
-  orbitFamilies: () => get<OrbitFamilies>('/orbits/families', () => mock.mockFamilies),
+  orbitFamilies: () => get<OrbitFamilies>('/orbits/families', () => mock.mockFamilies()),
 
   ephemerisBodies: (t0: string, t1: string, n: number) =>
-    get<EphemerisBodies>(`/ephemeris/bodies${qs({ t0, t1, n })}`, () => mock.mockEphemeris(n)),
+    get<EphemerisBodies>(`/ephemeris/bodies${qs({ t0, t1, n })}`, () => mock.mockEphemeris(t0, t1, n)),
 
-  sensors: () => get<Sensors>('/sensors', () => mock.mockSensors),
+  sensors: () => get<Sensors>('/sensors', () => mock.mockSensors).then(adaptSensors),
 
   coverage: (req: CoverageRequest) => post<CoverageResponse>('/coverage', req, () => mock.mockCoverage(req)),
 
-  odRun: (req: OdRequest) => post<OdResponse>('/od/run', req, () => mock.mockOd),
+  odRun: (req: OdRequest) => post<OdResponse>('/od/run', req, () => mock.mockOd()),
 
   maneuverDetect: (req: ManeuverDetectRequest) =>
     post<ManeuverDetectResponse>('/maneuver/detect', req, () => mock.mockManeuver),
@@ -131,7 +140,24 @@ export const api = {
   architectureEvaluate: (req: ArchitectureEvaluateRequest) =>
     post<ArchitectureEvaluateResponse>('/architecture/evaluate', req, () => mock.mockArchitecture(req)),
 
-  demoScenario: () => get<DemoScenario>('/demo/scenario', () => mock.mockDemo),
+  demoScenario: () => get<DemoScenario>('/demo/scenario', () => mock.mockDemo()),
 };
 
 export type Api = typeof api;
+
+/** Tolerate the backend's field names (platform_orbit, orbit_ref, alt_m) alongside the §5 contract names. */
+export function adaptSensors(raw: Sensors): Sensors {
+  const anyRaw = raw as unknown as { ground?: Record<string, unknown>[]; space?: Record<string, unknown>[] };
+  const ground = (anyRaw.ground ?? []).map((g) => ({
+    ...g,
+    alt_km: typeof g.alt_km === 'number' ? g.alt_km : typeof g.alt_m === 'number' ? (g.alt_m as number) / 1000 : 0,
+    moon_exclusion_deg: typeof g.moon_exclusion_deg === 'number' ? g.moon_exclusion_deg : 15,
+    sun_exclusion_deg: typeof g.sun_exclusion_deg === 'number' ? g.sun_exclusion_deg : 90,
+  })) as unknown as Sensors['ground'];
+  const space = (anyRaw.space ?? []).map((s) => ({
+    ...s,
+    orbit: String(s.orbit ?? s.platform_orbit ?? 'unknown'),
+    orbit_member_id: (s.orbit_member_id ?? s.orbit_ref ?? undefined) as string | undefined,
+  })) as unknown as Sensors['space'];
+  return { ground, space };
+}

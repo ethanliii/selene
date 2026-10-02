@@ -1,16 +1,18 @@
 /**
- * Uncertainty particle cloud: renders N points from a Float32Array (xyz triplets, rotating frame, nondim).
- * Minimal working rendering: THREE.Points with a size-attenuated PointsMaterial.
- * TODO(later agent, M10): animate between consecutive demo frames' clouds (interpolate or crossfade),
- *   color by particle weight / age, and grow the cloud visibly as custody decays.
+ * Uncertainty particle cloud: THREE.Points over a PRE-ALLOCATED Float32Array (MAX_POINTS) with additive blending.
+ * On a new frame the incoming positions are copied into the buffer, the draw range is set, and per-vertex colours
+ * are computed from the Mahalanobis-like radius r = sqrt(Σ((p−c)/σ_axis)²) (diagonal covariance of the sample):
+ * core particles (r < 1) are bright/white-hot, the 1–2σ shell is the object colour, the tail (r > 2) is dim.
+ * Nothing is allocated per render tick; per frame update is O(N) with no new typed arrays.
  */
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import type { Vec3 } from '../api/types';
-import { COLORS } from './constants';
+
+export const MAX_POINTS = 32768;
 
 interface Props {
-  /** Flat xyz triplets. */
+  /** Flat xyz triplets (rotating frame, nondim). Only the first MAX_POINTS points are drawn. */
   positions: Float32Array;
   color?: string;
   size?: number;
@@ -18,17 +20,78 @@ interface Props {
   visible?: boolean;
 }
 
-export function ParticleCloud({ positions, color = COLORS.sim, size = 0.004, opacity = 0.75, visible = true }: Props) {
-  const geom = useMemo(() => {
+const CORE = new THREE.Color('#ffffff');
+const TAIL = new THREE.Color('#3a2a10');
+
+export function ParticleCloud({ positions, color = '#ffb86b', size = 0.003, opacity = 0.85, visible = true }: Props) {
+  const { geom, posAttr, colAttr } = useMemo(() => {
     const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    g.computeBoundingSphere();
-    return g;
-  }, [positions]);
+    const pa = new THREE.BufferAttribute(new Float32Array(MAX_POINTS * 3), 3);
+    const ca = new THREE.BufferAttribute(new Float32Array(MAX_POINTS * 3), 3);
+    pa.setUsage(THREE.DynamicDrawUsage);
+    ca.setUsage(THREE.DynamicDrawUsage);
+    g.setAttribute('position', pa);
+    g.setAttribute('color', ca);
+    g.setDrawRange(0, 0);
+    return { geom: g, posAttr: pa, colAttr: ca };
+  }, []);
+  const mid = useMemo(() => new THREE.Color(color), [color]);
+
+  useEffect(() => {
+    const n = Math.min(MAX_POINTS, Math.floor(positions.length / 3));
+    const dst = posAttr.array as Float32Array;
+    dst.set(positions.subarray(0, n * 3));
+    // Sample mean and per-axis std (diagonal covariance).
+    let cx = 0, cy = 0, cz = 0;
+    for (let i = 0; i < n; i++) {
+      cx += dst[3 * i];
+      cy += dst[3 * i + 1];
+      cz += dst[3 * i + 2];
+    }
+    cx /= n || 1;
+    cy /= n || 1;
+    cz /= n || 1;
+    let sx = 0, sy = 0, sz = 0;
+    for (let i = 0; i < n; i++) {
+      sx += (dst[3 * i] - cx) ** 2;
+      sy += (dst[3 * i + 1] - cy) ** 2;
+      sz += (dst[3 * i + 2] - cz) ** 2;
+    }
+    const eps = 1e-12;
+    sx = Math.sqrt(sx / (n || 1)) + eps;
+    sy = Math.sqrt(sy / (n || 1)) + eps;
+    sz = Math.sqrt(sz / (n || 1)) + eps;
+    const col = colAttr.array as Float32Array;
+    for (let i = 0; i < n; i++) {
+      const r = Math.sqrt(((dst[3 * i] - cx) / sx) ** 2 + ((dst[3 * i + 1] - cy) / sy) ** 2 + ((dst[3 * i + 2] - cz) / sz) ** 2);
+      let cr: number, cg: number, cb: number;
+      if (r < 1) {
+        const w = r; // white-hot core → object colour at 1σ
+        cr = CORE.r + (mid.r - CORE.r) * w;
+        cg = CORE.g + (mid.g - CORE.g) * w;
+        cb = CORE.b + (mid.b - CORE.b) * w;
+      } else {
+        const w = Math.min(1, (r - 1) / 2); // 1σ → 3σ fades to the tail colour
+        cr = mid.r + (TAIL.r - mid.r) * w;
+        cg = mid.g + (TAIL.g - mid.g) * w;
+        cb = mid.b + (TAIL.b - mid.b) * w;
+      }
+      col[3 * i] = cr;
+      col[3 * i + 1] = cg;
+      col[3 * i + 2] = cb;
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+    geom.setDrawRange(0, n);
+    geom.computeBoundingSphere();
+  }, [positions, geom, posAttr, colAttr, mid]);
+
+  useEffect(() => () => geom.dispose(), [geom]);
+
   if (!visible || positions.length < 3) return null;
   return (
-    <points geometry={geom}>
-      <pointsMaterial color={color} size={size} sizeAttenuation transparent opacity={opacity} depthWrite={false} />
+    <points geometry={geom} frustumCulled={false}>
+      <pointsMaterial vertexColors size={size} sizeAttenuation transparent opacity={opacity} depthWrite={false} blending={THREE.AdditiveBlending} />
     </points>
   );
 }

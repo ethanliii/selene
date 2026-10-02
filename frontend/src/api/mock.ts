@@ -1,7 +1,12 @@
 /**
- * Mock-mode fallback. Used ONLY when the backend is unreachable so the UI still renders.
- * Everything here is minimal, obviously synthetic, and labelled SIMULATED / notional.
- * Numbers are placeholders for layout, NOT physics results — never present them as real.
+ * Mock-mode fallback. Used ONLY when the backend is unreachable so the UI stays fully demonstrable.
+ *
+ * What is physically meaningful here and what is not:
+ *  - Orbit families, object motion and uncertainty clouds come from a browser CR3BP integrator
+ *    (src/lib/cr3bp.ts): real three-body dynamics, literature initial conditions, differential correction.
+ *  - Ephemeris angles use mean-element formulas (src/lib/ephem.ts), not DE440s.
+ *  - Coverage / OD / tasking / architecture numbers are LAYOUT PLACEHOLDERS (zeros), never physics results.
+ * Everything is labelled SIMULATED / notional; nothing here refers to a real spacecraft or country.
  */
 import type {
   ArchitectureEvaluateRequest,
@@ -17,92 +22,75 @@ import type {
   OrbitFamilies,
   ReachabilityRequest,
   ReachabilityResponse,
-  SeleneEvent,
   Sensors,
   TaskingRequest,
   TaskingResponse,
   Vec3,
 } from './types';
+import { MOCK_GROUND, MOCK_SPACE } from '../demo/mockNetwork';
+import { buildMockScenario, MOCK_OBJECTS, mockObjectGcrfState, SCENARIO_T0 } from '../demo/mockScenario';
+import { L_STAR_KM, lagrangePoints, mockFamilies as cr3bpFamilies, MU as MU_CR3BP } from '../lib/cr3bp';
+import { meanMoonAngle, meanSunAngle } from '../lib/ephem';
 
 /** CR3BP Earth–Moon mass ratio (DE440 GMs), see PLAN.md §2.1. */
-export const MU = 0.0121505;
+export const MU = MU_CR3BP;
 /** Collinear/triangular libration points, rotating frame, nondimensional (PLAN.md §2.1). */
-export const LAGRANGE_ROT: Record<'L1' | 'L2' | 'L3' | 'L4' | 'L5', Vec3> = {
-  L1: [0.836915, 0, 0],
-  L2: [1.155682, 0, 0],
-  L3: [-1.005063, 0, 0],
-  L4: [0.5 - MU, 0.866025, 0],
-  L5: [0.5 - MU, -0.866025, 0],
-};
+export const LAGRANGE_ROT: Record<'L1' | 'L2' | 'L3' | 'L4' | 'L5', Vec3> = lagrangePoints();
 
-const T0 = '2026-10-01T00:00:00Z';
+const T0 = SCENARIO_T0;
 
 export const mockHealth: Health = { status: 'mock', version: '0.0.0-mock', offline: true };
 
-export const mockCatalog: CatalogObject[] = [
-  {
-    id: 'SIM-DRO-01',
-    name: 'NOTIONAL DRO LOITERER',
-    kind: 'simulated',
-    orbit_type: 'DRO',
-    actor: 'notional',
-    state_gcrf_km: [-311000, 180000, 12000, -0.55, -0.92, 0.01],
-    epoch_utc: T0,
-  },
-  {
-    id: 'SIM-NRHO-01',
-    name: 'NOTIONAL ALLIED RELAY',
-    kind: 'simulated',
-    orbit_type: '9:2 NRHO',
-    actor: 'notional',
-    state_gcrf_km: [380000, -40000, -60000, 0.1, 1.0, 0.3],
-    epoch_utc: T0,
-  },
-];
-
-/** Circle-ish placeholder for a planar family member (NOT a corrected periodic orbit). */
-function ring(cx: number, r: number, n = 90, retro = false): Vec3[] {
-  const out: Vec3[] = [];
-  for (let i = 0; i <= n; i++) {
-    const a = (retro ? -1 : 1) * (2 * Math.PI * i) / n;
-    out.push([cx + r * Math.cos(a), r * Math.sin(a), 0]);
-  }
-  return out;
+let catalogCache: CatalogObject[] | null = null;
+export function mockCatalog(): CatalogObject[] {
+  if (catalogCache) return catalogCache;
+  catalogCache = MOCK_OBJECTS.map((d) => {
+    const { rot, gcrf } = mockObjectGcrfState(d);
+    return {
+      id: d.id,
+      name: d.name,
+      kind: 'simulated' as const,
+      orbit_type: d.orbit_type,
+      actor: 'notional',
+      state_gcrf_km: gcrf,
+      epoch_utc: T0,
+      ic_rot: rot,
+      radius_m: d.radius_m,
+      albedo: d.albedo,
+    };
+  });
+  return catalogCache;
 }
 
-export const mockFamilies: OrbitFamilies = {
-  families: [
-    {
-      name: 'DRO (mock)',
-      members: [
-        { id: 'mock-dro-1', ic: [0.8, 0, 0, 0, 0.5, 0], period: 3.5, jacobi: 2.9, stability: 1, samples_rot: ring(1 - MU, 0.18, 90, true) },
-      ],
-    },
-    {
-      name: 'L1 Lyapunov (mock)',
-      members: [
-        { id: 'mock-l1-1', ic: [0.8234, 0, 0, 0, 0.1263, 0], period: 2.743, jacobi: 3.17, stability: 500, samples_rot: ring(LAGRANGE_ROT.L1[0], 0.03) },
-      ],
-    },
-  ],
-};
+export function mockFamilies(): OrbitFamilies {
+  return {
+    families: cr3bpFamilies().map((f) => ({
+      name: f.name,
+      members: f.members.map((m) => ({ id: m.id, ic: m.ic, period: m.period, jacobi: m.jacobi, stability: m.stability, samples_rot: m.samples_rot, approximate: m.approximate })),
+    })),
+  };
+}
 
-export function mockEphemeris(n = 24): EphemerisBodies {
+/** Mean-element Moon/Sun positions in a GCRF-like frame (xy-plane only; see lib/ephem.ts for sources). */
+export function mockEphemeris(t0: string = T0, t1?: string, n = 24): EphemerisBodies {
+  const base = Date.parse(t0);
+  const end = t1 ? Date.parse(t1) : base + (n - 1) * 3600e3;
   const epochs: string[] = [];
   const moon: Vec3[] = [];
   const sun: Vec3[] = [];
   const earth: Vec3[] = [];
-  const base = Date.parse(T0);
   for (let i = 0; i < n; i++) {
-    const t = i * 3600;
-    epochs.push(new Date(base + t * 1000).toISOString());
-    const a = (2 * Math.PI * t) / (27.321661 * 86400);
-    moon.push([384400 * Math.cos(a), 384400 * Math.sin(a), 0]);
-    sun.push([1.496e8, 0, 0]);
+    const ms = base + ((end - base) * i) / Math.max(1, n - 1);
+    epochs.push(new Date(ms).toISOString());
+    const a = meanMoonAngle(ms);
+    const s = meanSunAngle(ms);
+    moon.push([L_STAR_KM * Math.cos(a), L_STAR_KM * Math.sin(a), 0]);
+    sun.push([1.496e8 * Math.cos(s), 1.496e8 * Math.sin(s), 0]);
     earth.push([0, 0, 0]);
   }
   const rep = (v: Vec3): Vec3[] => Array.from({ length: n }, () => v);
   return {
+    source: 'mock-mean-elements',
     epochs,
     earth,
     moon,
@@ -118,14 +106,8 @@ export function mockEphemeris(n = 24): EphemerisBodies {
   };
 }
 
-export const mockSensors: Sensors = {
-  ground: [
-    { id: 'GND-MAUI', name: 'Maui (mock site)', lat_deg: 20.71, lon_deg: -156.26, alt_km: 3.06, limiting_mag: 19.5, fov_deg: 1.0, min_elevation_deg: 20, sun_exclusion_deg: 90, moon_exclusion_deg: 15 },
-  ],
-  space: [
-    { id: 'SPC-DRO-A', name: 'DRO observer (mock)', orbit: 'DRO', limiting_mag: 18.0, fov_deg: 4.0, sun_exclusion_deg: 40, moon_exclusion_deg: 10, earth_exclusion_deg: 10 },
-  ],
-};
+/** Notional sensor network (see demo/mockNetwork.ts for the specification disclaimer). */
+export const mockSensors: Sensors = { ground: MOCK_GROUND, space: MOCK_SPACE };
 
 export function mockCoverage(req: CoverageRequest): CoverageResponse {
   const { nx, ny, xmin, xmax, ymin, ymax } = req.grid;
@@ -136,19 +118,20 @@ export function mockCoverage(req: CoverageRequest): CoverageResponse {
   return { grid: { ...req.grid, x, y }, values, epochs };
 }
 
-export const mockOd: OdResponse = {
-  ukf: { epochs: [T0], states: [mockCatalog[0].state_gcrf_km], covs: [identity6(100)], nis: [1.0] },
-  particles: [],
-};
+export function mockOd(): OdResponse {
+  const c = mockCatalog()[0];
+  return { ukf: { epochs: [T0], states: [c.state_gcrf_km], covs: [identity6(100)], nis: [1.0] }, particles: [] };
+}
 
 export const mockManeuver: ManeuverDetectResponse = { detections: [], threshold: 5.99 };
 
 export function mockReachability(req: ReachabilityRequest): ReachabilityResponse {
+  // Placeholder ring (layout only). The scripted mock scenario carries a real CR3BP reachable set instead.
   const pts: Vec3[] = [];
   const r = 0.05 + 0.002 * req.dv_budget_mps * (req.horizon_h / 24);
   for (let i = 0; i < 200; i++) {
     const a = (i / 200) * 2 * Math.PI;
-    pts.push([1 - MU + r * Math.cos(a) * (0.5 + 0.5 * Math.random()), r * Math.sin(a) * (0.5 + 0.5 * Math.random()), 0]);
+    pts.push([1 - MU + r * Math.cos(a) * (0.5 + 0.5 * ((i * 7919) % 97) / 97), r * Math.sin(a) * (0.5 + 0.5 * ((i * 104729) % 89) / 89), 0]);
   }
   return {
     points: pts,
@@ -185,26 +168,10 @@ export function mockArchitecture(req: ArchitectureEvaluateRequest): Architecture
   };
 }
 
-const mockEvents: SeleneEvent[] = [
-  { t: 0, kind: 'info', severity: 'info', text: 'MOCK: backend offline. Scenario events are layout placeholders only.' },
-  { t: 20 * 3600, kind: 'maneuver_detected', severity: 'alert', text: 'MOCK: notional DRO object — NIS gate exceeded (placeholder).', object_id: 'SIM-DRO-01' },
-  { t: 26 * 3600, kind: 'custody_lost', severity: 'warn', text: 'MOCK: custody degraded in lunar glare (placeholder).', object_id: 'SIM-DRO-01' },
-  { t: 40 * 3600, kind: 'custody_regained', severity: 'ok', text: 'MOCK: custody regained by DRO observer (placeholder).', object_id: 'SIM-DRO-01' },
-];
-
-export const mockDemo: DemoScenario = {
-  meta: {
-    title: 'MOCK scenario (backend offline)',
-    t0_utc: T0,
-    duration_s: 48 * 3600,
-    playback_s: 120,
-    disclaimer: 'All objects and events are SIMULATED and attributed to a notional actor.',
-  },
-  frames: [],
-  events: mockEvents,
-  brief:
-    '## Analyst brief (MOCK)\n\nThe backend is offline; this brief is a layout placeholder and contains no analysis results.\n\n- All objects and events shown are SIMULATED.\n- Start the API (make dev) to load the real scripted scenario.',
-};
+/** Scripted story generated in the browser from CR3BP dynamics (see demo/mockScenario.ts). */
+export function mockDemo(): DemoScenario {
+  return buildMockScenario();
+}
 
 function identity6(scale: number): number[][] {
   return Array.from({ length: 6 }, (_, i) => Array.from({ length: 6 }, (_, j) => (i === j ? scale : 0)));

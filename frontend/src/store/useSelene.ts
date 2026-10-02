@@ -1,9 +1,11 @@
 /**
  * Global UI state (zustand). Time is kept as `tSec` = seconds since `t0Iso` (scenario start, UTC).
- * Frame mode drives the 3D scene: 'rotating' = Earth–Moon synodic frame, 'inertial' = GCRF-like.
+ * Frame mode drives the 3D scene: 'rotating' = Earth–Moon synodic frame, 'inertial' = GCRF-like view
+ * (rotating group turned about +z by the Earth–Moon line angle, aligned with the rotating frame at t0).
  */
 import { create } from 'zustand';
-import type { CatalogObject, DemoScenario, SeleneEvent } from '../api/types';
+import type { CatalogObject, DemoScenario, EphemerisBodies, EventSeverity, OrbitFamilies, SeleneEvent, Sensors } from '../api/types';
+import { setEphemeris as installEphemeris } from '../lib/ephem';
 
 export type FrameMode = 'rotating' | 'inertial';
 
@@ -15,10 +17,25 @@ export interface Layers {
   fov: boolean;
   exclusion: boolean;
   grid: boolean;
+  sites: boolean;
+  reach: boolean;
+  labels: boolean;
 }
 
-export type PlaybackSpeed = 1 | 60 | 600 | 3600;
-export const SPEEDS: PlaybackSpeed[] = [1, 60, 600, 3600];
+/** Preset playback speeds (sim seconds per wall-clock second). The scripted demo may use another value. */
+export const SPEEDS: number[] = [1, 60, 600, 3600, 10000];
+export type PlaybackSpeed = number;
+
+export type DockTab = 'object' | 'events' | 'brief';
+
+export interface Toast {
+  id: number;
+  text: string;
+  severity: EventSeverity;
+  kind: string;
+  objectId?: string;
+  t: number;
+}
 
 export interface SeleneState {
   frame: FrameMode;
@@ -30,11 +47,22 @@ export interface SeleneState {
   playing: boolean;
   speed: PlaybackSpeed;
   selectedObjectId: string | null;
+  /** Who made the last selection: a user click/tap ('user') or the demo driver ('auto'). The dock only jumps to the
+   *  Object tab for user selections, so the scripted story can keep the Events feed in front. */
+  selectSource: 'user' | 'auto';
   layers: Layers;
   events: SeleneEvent[];
   catalog: CatalogObject[];
+  sensors: Sensors | null;
+  families: OrbitFamilies | null;
+  highlightFamily: string | null;
+  ephemeris: EphemerisBodies | null;
   scenario: DemoScenario | null;
   brief: string;
+  dockTab: DockTab;
+  toasts: Toast[];
+  /** Set once the scripted scenario has reached its end (dock switched to Brief). */
+  scenarioFinished: boolean;
 
   setFrame: (f: FrameMode) => void;
   setT: (t: number) => void;
@@ -44,19 +72,29 @@ export interface SeleneState {
   setPlaying: (p: boolean) => void;
   togglePlaying: () => void;
   setSpeed: (s: PlaybackSpeed) => void;
-  selectObject: (id: string | null) => void;
+  selectObject: (id: string | null, source?: 'user' | 'auto') => void;
   toggleLayer: (k: keyof Layers) => void;
   setLayer: (k: keyof Layers, v: boolean) => void;
   setEvents: (e: SeleneEvent[]) => void;
   setCatalog: (c: CatalogObject[]) => void;
+  setSensors: (s: Sensors | null) => void;
+  setFamilies: (f: OrbitFamilies | null) => void;
+  setHighlightFamily: (name: string | null) => void;
+  setEphemeris: (e: EphemerisBodies | null) => void;
   setBrief: (b: string) => void;
-  /** Load a demo scenario: sets range, events, brief and rewinds to t0. */
+  setDockTab: (t: DockTab) => void;
+  pushToast: (t: Omit<Toast, 'id'>) => void;
+  dismissToast: (id: number) => void;
+  setScenarioFinished: (v: boolean) => void;
+  /** Load a (normalised) demo scenario: sets range, events, brief and rewinds to t0. */
   loadScenario: (s: DemoScenario) => void;
   reset: () => void;
 }
 
-const DEFAULT_T0_ISO = '2026-10-01T00:00:00Z';
-const DEFAULT_SPAN_S = 7 * 86400;
+export const DEFAULT_T0_ISO = '2026-10-01T00:00:00Z';
+export const DEFAULT_SPAN_S = 7 * 86400;
+const TOAST_MS = 7000;
+let toastSeq = 1;
 
 export const useSelene = create<SeleneState>((set, get) => ({
   frame: 'rotating',
@@ -67,11 +105,19 @@ export const useSelene = create<SeleneState>((set, get) => ({
   playing: false,
   speed: 600,
   selectedObjectId: null,
-  layers: { families: true, lagrange: true, trails: true, clouds: true, fov: true, exclusion: false, grid: true },
+  selectSource: 'user',
+  layers: { families: true, lagrange: true, trails: true, clouds: true, fov: true, exclusion: false, grid: true, sites: true, reach: true, labels: true },
   events: [],
   catalog: [],
+  sensors: null,
+  families: null,
+  highlightFamily: null,
+  ephemeris: null,
   scenario: null,
   brief: '',
+  dockTab: 'events',
+  toasts: [],
+  scenarioFinished: false,
 
   setFrame: (frame) => set({ frame }),
   setT: (t) => {
@@ -89,16 +135,31 @@ export const useSelene = create<SeleneState>((set, get) => ({
   togglePlaying: () => {
     const { playing, tSec, t1Sec, t0Sec } = get();
     // Pressing play at the end rewinds.
-    if (!playing && tSec >= t1Sec) set({ tSec: t0Sec, playing: true });
+    if (!playing && tSec >= t1Sec) set({ tSec: t0Sec, playing: true, scenarioFinished: false });
     else set({ playing: !playing });
   },
   setSpeed: (speed) => set({ speed }),
-  selectObject: (selectedObjectId) => set({ selectedObjectId }),
+  selectObject: (selectedObjectId, source = 'user') => set({ selectedObjectId, selectSource: source }),
   toggleLayer: (k) => set((s) => ({ layers: { ...s.layers, [k]: !s.layers[k] } })),
   setLayer: (k, v) => set((s) => ({ layers: { ...s.layers, [k]: v } })),
   setEvents: (events) => set({ events: [...events].sort((a, b) => a.t - b.t) }),
   setCatalog: (catalog) => set({ catalog }),
+  setSensors: (sensors) => set({ sensors }),
+  setFamilies: (families) => set({ families }),
+  setHighlightFamily: (highlightFamily) => set({ highlightFamily }),
+  setEphemeris: (ephemeris) => {
+    installEphemeris(ephemeris);
+    set({ ephemeris });
+  },
   setBrief: (brief) => set({ brief }),
+  setDockTab: (dockTab) => set({ dockTab }),
+  pushToast: (t) => {
+    const id = toastSeq++;
+    set((s) => ({ toasts: [...s.toasts.slice(-4), { ...t, id }] }));
+    setTimeout(() => get().dismissToast(id), TOAST_MS);
+  },
+  dismissToast: (id) => set((s) => (s.toasts.some((t) => t.id === id) ? { toasts: s.toasts.filter((t) => t.id !== id) } : s)),
+  setScenarioFinished: (scenarioFinished) => set({ scenarioFinished }),
   loadScenario: (scenario) =>
     set({
       scenario,
@@ -109,14 +170,37 @@ export const useSelene = create<SeleneState>((set, get) => ({
       events: [...scenario.events].sort((a, b) => a.t - b.t),
       brief: scenario.brief,
       playing: false,
+      scenarioFinished: false,
+      toasts: [],
     }),
   reset: () =>
-    set({ t0Iso: DEFAULT_T0_ISO, t0Sec: 0, t1Sec: DEFAULT_SPAN_S, tSec: 0, playing: false, events: [], scenario: null, brief: '', selectedObjectId: null }),
+    set({
+      t0Iso: DEFAULT_T0_ISO,
+      t0Sec: 0,
+      t1Sec: DEFAULT_SPAN_S,
+      tSec: 0,
+      playing: false,
+      speed: 600,
+      events: [],
+      scenario: null,
+      brief: '',
+      selectedObjectId: null,
+      dockTab: 'events',
+      toasts: [],
+      scenarioFinished: false,
+      highlightFamily: null,
+    }),
 }));
 
 /** Current UTC Date for the time cursor. */
 export function cursorDate(t0Iso: string, tSec: number): Date {
   return new Date(Date.parse(t0Iso) + tSec * 1000);
+}
+
+/** Current UTC epoch in ms (imperative helper for render loops). */
+export function cursorMs(): number {
+  const { t0Iso, tSec } = useSelene.getState();
+  return Date.parse(t0Iso) + tSec * 1000;
 }
 
 /** Format as "YYYY-MM-DD HH:MM:SS UTC". */
@@ -135,4 +219,13 @@ export function fmtElapsed(s: number): string {
   const sec = s % 60;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${sign}${d}d ${pad(h)}:${pad(m)}:${pad(sec)}`;
+}
+
+/** Short duration "3h 12m" / "45m" / "2d 4h". */
+export function fmtAge(s: number): string {
+  if (!Number.isFinite(s) || s < 0) return '—';
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  return `${m}m`;
 }

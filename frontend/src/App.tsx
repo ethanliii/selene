@@ -12,6 +12,7 @@ function Banner() {
     <div className="banner" role="note">
       <span>UNCLASSIFIED // DEMONSTRATION — ALL OBJECTS AND EVENTS MARKED SIMULATED ARE NOTIONAL</span>
       {backend === 'offline' && <span className="offline">BACKEND OFFLINE — MOCK DATA</span>}
+      {backend === 'partial' && <span className="offline">API PARTIAL — MOCK FALLBACK FOR UNIMPLEMENTED ENDPOINTS</span>}
     </div>
   );
 }

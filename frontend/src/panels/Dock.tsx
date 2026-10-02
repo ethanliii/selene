@@ -1,30 +1,35 @@
-/** Right dock with Object / Events / Brief tabs. */
-import { useEffect, useState } from 'react';
-import { useSelene } from '../store/useSelene';
+/** Right dock with Object / Events / Brief tabs (active tab lives in the store so the demo driver can switch it). */
+import { useEffect } from 'react';
+import { useSelene, type DockTab } from '../store/useSelene';
 import { AnalystBrief } from './AnalystBrief';
 import { EventsFeed } from './EventsFeed';
 import { ObjectPanel } from './ObjectPanel';
 
-type Tab = 'object' | 'events' | 'brief';
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: DockTab; label: string }[] = [
   { id: 'object', label: 'Object' },
   { id: 'events', label: 'Events' },
   { id: 'brief', label: 'Brief' },
 ];
 
 export function Dock() {
-  const [tab, setTab] = useState<Tab>('events');
+  const tab = useSelene((s) => s.dockTab);
+  const setTab = useSelene((s) => s.setDockTab);
   const selected = useSelene((s) => s.selectedObjectId);
-  // Selecting an object in the scene brings the Object tab forward.
+  const source = useSelene((s) => s.selectSource);
+  const finished = useSelene((s) => s.scenarioFinished);
+  const briefReady = useSelene((s) => s.brief.length > 0);
+  // A USER selection in the scene brings the Object tab forward; the demo driver's automatic selections do not
+  // (the scripted story keeps the Events feed in front and surfaces events as toasts).
   useEffect(() => {
-    if (selected) setTab('object');
-  }, [selected]);
+    if (selected && source === 'user' && !finished) setTab('object');
+  }, [selected, source, finished, setTab]);
   return (
     <>
       <div className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? 'active' : ''} onClick={() => setTab(t.id)}>
             {t.label}
+            {t.id === 'brief' && briefReady && finished && <span className="dot" />}
           </button>
         ))}
       </div>

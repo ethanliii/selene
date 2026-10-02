@@ -1,0 +1,374 @@
+{
+ "meta": {
+  "generated_utc": "2026-10-02T11:57:32+00:00",
+  "quick": false,
+  "build_time_s": 4.5,
+  "mu": 0.012150584395829193,
+  "L_star_km": 384400.0,
+  "T_star_s": 375190.2618944357,
+  "n_records": 325,
+  "ic_convention": "rotating frame, nondimensional; perpendicular xz-plane crossing farther from the Moon (apolune for NRHOs); halo branch N/S = sign of z there",
+  "closure_check": "independent full-period DOP853 propagation at rtol=2.3e-14, atol=1e-14",
+  "normalisation_note": "JPL periodic-orbit catalogue uses the same \u03bc to ~1e-9 but lunit=389703 km and tunit=382981 s; nondimensional ICs/periods are directly comparable, km/day values are not"
+ },
+ "families": {
+  "L1_lyapunov": {
+   "family": "L1_lyapunov",
+   "branch": "",
+   "count": 35,
+   "generation": {
+    "seed": "linearised in-plane solution, Ax=0.004 L*",
+    "continuation": "natural parameter in x0 (far-from-Moon crossing), adaptive step",
+    "x0_end": 0.62,
+    "step": 0.0075,
+    "include_x0": [
+     0.8234
+    ],
+    "corrector": "symmetric single shooting, planar (free vy0)",
+    "x_L": 0.8369151317448632,
+    "linear_period": 2.691579559665652
+   },
+   "references": [
+    "Koon, Lo, Marsden & Ross (2011) \u00a74.2: L1 Lyapunov x0=0.8234, vy0=0.1263, T=2.7430",
+    "Richardson (1980) linear in-plane frequency"
+   ],
+   "log": {
+    "stop_reason": "reached p_end",
+    "failures": 1
+   },
+   "elapsed_s": 2.81,
+   "period_days_range": [
+    11.703656425825638,
+    29.41330529696216
+   ],
+   "jacobi_range": [
+    2.8957651396489976,
+    3.1873269976588348
+   ],
+   "stability_index_range": [
+    53.69214376036569,
+    1325.8503701941652
+   ],
+   "max_closure_error": 1.48554623463637e-11,
+   "located": []
+  },
+  "L2_lyapunov": {
+   "family": "L2_lyapunov",
+   "branch": "",
+   "count": 31,
+   "generation": {
+    "seed": "linearised in-plane solution, Ax=0.004 L*",
+    "continuation": "natural parameter in x0 (far-from-Moon crossing), adaptive step",
+    "x0_end": 1.3,
+    "step": 0.0055,
+    "include_x0": [],
+    "corrector": "symmetric single shooting, planar (free vy0)",
+    "x_L": 1.1556821607765204,
+    "linear_period": 3.373258123270253
+   },
+   "references": [
+    "Koon, Lo, Marsden & Ross (2011) \u00a74.2: L1 Lyapunov x0=0.8234, vy0=0.1263, T=2.7430",
+    "Richardson (1980) linear in-plane frequency"
+   ],
+   "log": {
+    "stop_reason": "reached p_end",
+    "failures": 1
+   },
+   "elapsed_s": 2.23,
+   "period_days_range": [
+    14.651081100875224,
+    27.00565412879519
+   ],
+   "jacobi_range": [
+    2.941476002477109,
+    3.171822546597806
+   ],
+   "stability_index_range": [
+    52.39813401274398,
+    724.6120872846508
+   ],
+   "max_closure_error": 2.729922603077195e-11,
+   "located": []
+  },
+  "L1_halo_N": {
+   "family": "L1_halo",
+   "branch": "N",
+   "count": 42,
+   "generation": {
+    "seed": "Richardson (1980) third-order, Az = [0.01, 0.016] L*",
+    "continuation": "pseudo-arclength in (x0, z0, vy0), adaptive step on Newton iterations",
+    "ds0": 0.006,
+    "ds_max": 0.011,
+    "termination": "perilune radius < R_moon + 50 km (perilune refined on dense output, not a grid minimum), or perilune re-growth after the NRHO minimum (L1)",
+    "nrho_perilune_bounds_km": [
+     900.0,
+     19000.0
+    ],
+    "nrho_corrector": "multiple shooting, 12 patch points, free period, phase y0=0",
+    "ic_convention": "perpendicular xz-plane crossing farther from the Moon (apolune for NRHOs)"
+   },
+   "references": [
+    "Richardson (1980) Celest. Mech. 22:241",
+    "Howell (1984) Celest. Mech. 32:53",
+    "Zimovan-Spreen, Howell & Davis (2020) CMDA 132:28 (NRHO bounds, 9:2 NRHO)"
+   ],
+   "log": {
+    "stop_reason": "stop criterion",
+    "failures": 0
+   },
+   "elapsed_s": 3.95,
+   "period_days_range": [
+    7.832960481730222,
+    12.104572006350697
+   ],
+   "jacobi_range": [
+    2.984095583030158,
+    3.173374233059831
+   ],
+   "stability_index_range": [
+    1.0000000001108356,
+    1160.9402094829006
+   ],
+   "max_closure_error": 3.2038291290781284e-11,
+   "located": []
+  },
+  "L1_halo_S": {
+   "family": "L1_halo",
+   "branch": "S",
+   "count": 42,
+   "generation": {
+    "seed": "Richardson (1980) third-order, Az = [0.01, 0.016] L*",
+    "continuation": "pseudo-arclength in (x0, z0, vy0), adaptive step on Newton iterations",
+    "ds0": 0.006,
+    "ds_max": 0.011,
+    "termination": "perilune radius < R_moon + 50 km (perilune refined on dense output, not a grid minimum), or perilune re-growth after the NRHO minimum (L1)",
+    "nrho_perilune_bounds_km": [
+     900.0,
+     19000.0
+    ],
+    "nrho_corrector": "multiple shooting, 12 patch points, free period, phase y0=0",
+    "ic_convention": "perpendicular xz-plane crossing farther from the Moon (apolune for NRHOs)"
+   },
+   "references": [
+    "Richardson (1980) Celest. Mech. 22:241",
+    "Howell (1984) Celest. Mech. 32:53",
+    "Zimovan-Spreen, Howell & Davis (2020) CMDA 132:28 (NRHO bounds, 9:2 NRHO)"
+   ],
+   "log": {
+    "stop_reason": "stop criterion",
+    "failures": 0
+   },
+   "elapsed_s": 4.0,
+   "period_days_range": [
+    7.832960481730222,
+    12.104572006350697
+   ],
+   "jacobi_range": [
+    2.984095583030158,
+    3.173374233059831
+   ],
+   "stability_index_range": [
+    1.0000000001108356,
+    1160.9402094829006
+   ],
+   "max_closure_error": 3.2038291290781284e-11,
+   "located": []
+  },
+  "L2_halo_N": {
+   "family": "L2_halo",
+   "branch": "N",
+   "count": 36,
+   "generation": {
+    "seed": "Richardson (1980) third-order, Az = [0.01, 0.016] L*",
+    "continuation": "pseudo-arclength in (x0, z0, vy0), adaptive step on Newton iterations",
+    "ds0": 0.006,
+    "ds_max": 0.012,
+    "termination": "perilune radius < R_moon + 50 km (perilune refined on dense output, not a grid minimum), or perilune re-growth after the NRHO minimum (L1)",
+    "nrho_perilune_bounds_km": [
+     1850.0,
+     17350.0
+    ],
+    "nrho_corrector": "multiple shooting, 12 patch points, free period, phase y0=0",
+    "ic_convention": "perpendicular xz-plane crossing farther from the Moon (apolune for NRHOs)"
+   },
+   "references": [
+    "Richardson (1980) Celest. Mech. 22:241",
+    "Howell (1984) Celest. Mech. 32:53",
+    "Zimovan-Spreen, Howell & Davis (2020) CMDA 132:28 (NRHO bounds, 9:2 NRHO)"
+   ],
+   "log": {
+    "stop_reason": "stop criterion",
+    "failures": 0
+   },
+   "elapsed_s": 3.3,
+   "period_days_range": [
+    6.0014543610248845,
+    14.827189495880559
+   ],
+   "jacobi_range": [
+    3.015187405327957,
+    3.1515400840288788
+   ],
+   "stability_index_range": [
+    1.0000000001429878,
+    600.0847159616474
+   ],
+   "max_closure_error": 2.0445326855134116e-11,
+   "located": []
+  },
+  "L2_halo_S": {
+   "family": "L2_halo",
+   "branch": "S",
+   "count": 39,
+   "generation": {
+    "seed": "Richardson (1980) third-order, Az = [0.01, 0.016] L*",
+    "continuation": "pseudo-arclength in (x0, z0, vy0), adaptive step on Newton iterations",
+    "ds0": 0.006,
+    "ds_max": 0.012,
+    "termination": "perilune radius < R_moon + 50 km (perilune refined on dense output, not a grid minimum), or perilune re-growth after the NRHO minimum (L1)",
+    "nrho_perilune_bounds_km": [
+     1850.0,
+     17350.0
+    ],
+    "nrho_corrector": "multiple shooting, 12 patch points, free period, phase y0=0",
+    "ic_convention": "perpendicular xz-plane crossing farther from the Moon (apolune for NRHOs)"
+   },
+   "references": [
+    "Richardson (1980) Celest. Mech. 22:241",
+    "Howell (1984) Celest. Mech. 32:53",
+    "Zimovan-Spreen, Howell & Davis (2020) CMDA 132:28 (NRHO bounds, 9:2 NRHO)"
+   ],
+   "log": {
+    "stop_reason": "stop criterion",
+    "failures": 0
+   },
+   "elapsed_s": 3.35,
+   "period_days_range": [
+    6.0014543610248845,
+    14.827189495880559
+   ],
+   "jacobi_range": [
+    3.015187405327957,
+    3.1515400840288788
+   ],
+   "stability_index_range": [
+    1.0000000001389497,
+    600.0847159616474
+   ],
+   "max_closure_error": 2.0445326855134116e-11,
+   "located": [
+    "L2_halo_S_nrho_9_2",
+    "L2_halo_S_nrho_4_1",
+    "L2_halo_S_nrho_3_1"
+   ]
+  },
+  "DRO": {
+   "family": "DRO",
+   "branch": "",
+   "count": 46,
+   "generation": {
+    "seed": "two-body circular retrograde velocity about the Moon at x0=0.95",
+    "continuation": "natural parameter in x0 (decreasing), adaptive step",
+    "x0_start": 0.95,
+    "x0_end": 0.5,
+    "step": 0.0125,
+    "corrector": "symmetric single shooting, planar (free vy0)"
+   },
+   "references": [
+    "H\u00e9non (1969) A&A 1:223 (family f)",
+    "Broucke (1968) JPL TR 32-1168"
+   ],
+   "log": {
+    "stop_reason": "reached p_end",
+    "failures": 8
+   },
+   "elapsed_s": 3.78,
+   "period_days_range": [
+    1.7234590778000658,
+    25.942347286823836
+   ],
+   "jacobi_range": [
+    2.7069431422702737,
+    3.2292619943137852
+   ],
+   "stability_index_range": [
+    1.0,
+    1.0000000000350278
+   ],
+   "max_closure_error": 2.106242263932856e-12,
+   "located": []
+  },
+  "resonant_3:1": {
+   "family": "resonant_3:1",
+   "branch": "",
+   "count": 19,
+   "generation": {
+    "seed": "two-body ellipse, a=0.47879 L*, perigee on +x axis",
+    "continuation": "natural parameter in x0 (perigee radius decreasing), adaptive step",
+    "x0_start": 0.3,
+    "x0_end": 0.15,
+    "step": 0.01,
+    "corrector": "symmetric single shooting, planar, explicit half-period unknown; final polish pass with the integrator at rtol 2.3e-14 / atol 1e-14",
+    "termination": "x0 = 0.15 (perigee \u2248 62331 km): below this the full-period closure check hits its double-precision roundoff floor (~1e-10)"
+   },
+   "references": [
+    "JPL Three-Body Periodic Orbit Catalog (resonant family, Earth-Moon)"
+   ],
+   "log": {
+    "stop_reason": "reached p_end",
+    "failures": 0
+   },
+   "elapsed_s": 1.23,
+   "period_days_range": [
+    28.128869289159624,
+    28.39217591180989
+   ],
+   "jacobi_range": [
+    3.1553919021382644,
+    3.3692382227095954
+   ],
+   "stability_index_range": [
+    1.3762035396589465,
+    5.886590662839925
+   ],
+   "max_closure_error": 4.65530530791014e-11,
+   "located": []
+  },
+  "resonant_2:1": {
+   "family": "resonant_2:1",
+   "branch": "",
+   "count": 35,
+   "generation": {
+    "seed": "two-body ellipse, a=0.62740 L*, perigee on +x axis",
+    "continuation": "natural parameter in x0 (perigee radius decreasing), adaptive step",
+    "x0_start": 0.5,
+    "x0_end": 0.12,
+    "step": 0.02,
+    "corrector": "symmetric single shooting, planar, explicit half-period unknown; final polish pass with the integrator at rtol 2.3e-14 / atol 1e-14",
+    "termination": "x0 = 0.12 (perigee \u2248 50799 km): below this the full-period closure check hits its double-precision roundoff floor (~1e-10)"
+   },
+   "references": [
+    "JPL Three-Body Periodic Orbit Catalog (resonant family, Earth-Moon)"
+   ],
+   "log": {
+    "stop_reason": "reached p_end",
+    "failures": 0
+   },
+   "elapsed_s": 1.75,
+   "period_days_range": [
+    25.66629666922007,
+    27.304716983163416
+   ],
+   "jacobi_range": [
+    2.5739176952537193,
+    3.16908505236705
+   ],
+   "stability_index_range": [
+    1.0,
+    1.0000315545595897
+   ],
+   "max_closure_error": 3.2674252192776976e-11,
+   "located": []
+  }
+ }
+}

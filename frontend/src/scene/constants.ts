@@ -44,6 +44,29 @@ export const CAMERA = {
   fov: 40,
 };
 
+/** Orbit-family colours (by family-name keyword, else by index). Shared by the scene and the TopBar legend. */
+export const FAMILY_PALETTE = ['#4cc9f0', '#9b5de5', '#f2cc8f', '#81b29a', '#e07a5f', '#f5b700', '#2dd4bf', '#ff8fab'];
+export function familyColor(name: string, index: number): string {
+  const n = name.toLowerCase();
+  if (n.includes('dro')) return '#81b29a';
+  if (n.includes('nrho') || (n.includes('l2') && n.includes('halo'))) return '#f2cc8f';
+  if (n.includes('l1') && n.includes('halo')) return '#e07a5f';
+  if (n.includes('l1')) return '#4cc9f0';
+  if (n.includes('l2')) return '#9b5de5';
+  if (n.includes('resonant')) return '#ff8fab';
+  if (n.includes('frozen') || n.includes('elfo')) return '#f5b700';
+  return FAMILY_PALETTE[index % FAMILY_PALETTE.length];
+}
+
+/** Camera presets (rotating-frame coordinates, scene units). */
+export const CAMERA_PRESETS: Record<'overview' | 'earth' | 'moon' | 'l1' | 'l2', { position: Vec3; target: Vec3; label: string }> = {
+  overview: { position: [1.9, -1.6, 1.15], target: [0.5, 0, 0], label: 'Earth–Moon' },
+  earth: { position: [-MU + 0.16, -0.2, 0.11], target: [-MU, 0, 0], label: 'Earth' },
+  moon: { position: [1 - MU + 0.22, -0.3, 0.17], target: [1 - MU, 0, 0], label: 'Moon' },
+  l1: { position: [0.836915 + 0.1, -0.16, 0.09], target: [0.836915, 0, 0], label: 'L1' },
+  l2: { position: [1.155682 + 0.12, -0.2, 0.11], target: [1.155682, 0, 0], label: 'L2' },
+};
+
 /** Palette mirrors theme.css tokens for materials (three.js needs literal colors). */
 export const COLORS = {
   accent: '#4cc9f0',

@@ -36,6 +36,11 @@ export interface CatalogObject {
   actor: string;
   state_gcrf_km: State6;
   epoch_utc: string;
+  /** Optional: rotating-frame nondimensional state at `epoch_utc` (mock objects carry it; backend may omit). */
+  ic_rot?: State6;
+  /** Optional photometric parameters: characteristic radius [m] and Bond albedo. */
+  radius_m?: number;
+  albedo?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +56,8 @@ export interface OrbitMember {
   stability: number;
   /** Sampled positions along one period, rotating frame, nondimensional. */
   samples_rot: Vec3[];
+  /** True when the member was corrected from an approximate (non-literature) seed; shown as "approx." in the UI. */
+  approximate?: boolean;
 }
 
 export interface OrbitFamily {
@@ -65,6 +72,8 @@ export interface OrbitFamilies {
 // ---------------------------------------------------------------------------
 // GET /api/ephemeris/bodies?t0&t1&n
 export interface EphemerisBodies {
+  /** Provenance tag; the browser mock sets 'mock-mean-elements', the backend may set e.g. 'de440s'. */
+  source?: string;
   /** ISO UTC epochs, length n. */
   epochs: string[];
   /** GCRF positions, km, one Vec3 per epoch. Earth is the origin (all zeros) in GCRF. */
@@ -90,12 +99,19 @@ export interface GroundSensor {
   lat_deg: number;
   lon_deg: number;
   alt_km: number;
+  /** Backend may serve metres instead; the client adapter fills alt_km. */
+  alt_m?: number;
   /** Limiting visual magnitude. */
   limiting_mag: number;
   fov_deg: number;
   min_elevation_deg: number;
-  sun_exclusion_deg: number;
-  moon_exclusion_deg: number;
+  sun_exclusion_deg?: number;
+  moon_exclusion_deg?: number;
+  /** Sun elevation must be below this for the site to operate (deg, e.g. −12). */
+  sun_elev_max_deg?: number;
+  aperture_m?: number;
+  notes?: string;
+  spec_note?: string;
 }
 
 export type SpaceObserverOrbit = 'GEO' | 'L1_halo' | 'L2_halo' | 'DRO' | 'resonant' | string;
@@ -103,9 +119,17 @@ export type SpaceObserverOrbit = 'GEO' | 'L1_halo' | 'L2_halo' | 'DRO' | 'resona
 export interface SpaceSensor {
   id: string;
   name: string;
+  /** Candidate orbit class (client adapter copies `platform_orbit` here when the backend uses that name). */
   orbit: SpaceObserverOrbit;
-  /** Optional: id of the orbit-library member the observer rides. */
+  platform_orbit?: string;
+  /** Optional: id of the orbit-library member the observer rides (`orbit_ref` is the backend alias). */
   orbit_member_id?: string;
+  orbit_ref?: string | null;
+  /** Phase along the orbit at the epoch, fraction of a period. */
+  phase?: number;
+  /** GEO observers: sub-satellite longitude, deg east. */
+  geo_longitude_deg?: number;
+  notes?: string;
   limiting_mag: number;
   fov_deg: number;
   sun_exclusion_deg: number;
@@ -353,6 +377,14 @@ export interface SeleneEvent {
   severity: EventSeverity;
   text: string;
   object_id?: string;
+  /**
+   * Optional structured payload. Conventions used by the panels:
+   *   observation: { sensor_id, residual_arcsec }
+   *   maneuver_detected / maneuver_characterized: { dv_mps, dv_sigma_mps, direction: Vec3 (rotating-frame unit), confidence (0–1), nis }
+   *   tasking: { sensor_id, target_id }
+   *   any: { show_layers: string[] } — scene layers the demo driver switches on when the event is crossed
+   */
+  data?: Record<string, unknown>;
 }
 
 export interface FrameObject {
@@ -368,18 +400,35 @@ export interface FrameObject {
 
 export interface FrameCloud {
   object_id: string;
-  /** Particle positions, rotating frame, nondimensional. */
-  points_rot: Vec3[];
+  /** Particle positions, rotating frame, nondimensional — either as rows ... */
+  points_rot?: Vec3[];
+  /** ... or as a flat xyz array (what the backend streams; Float32Array after normalisation). */
+  points?: number[] | Float32Array;
+  /** sqrt(trace of position covariance) of the cloud, km. */
+  sigma_km?: number;
 }
 
 export interface FrameSensor {
   id: string;
-  pos_rot: Vec3;
-  /** Boresight unit vector in the rotating frame, if tasked. */
+  /** Observer position in the rotating frame (space observers; omitted for ground sites). */
+  pos_rot?: Vec3;
+  /** Boresight unit vector in the rotating frame, if tasked (`pointing_rot` is the backend alias). */
   boresight_rot?: Vec3;
+  pointing_rot?: Vec3;
   /** Object currently tasked, if any. */
   target_id?: string | null;
   fov_deg?: number;
+  /** Sensor is currently taking data. */
+  active?: boolean;
+}
+
+export interface FrameReachable {
+  /** Reachable-set sample positions, rotating frame nondimensional (rows or flat). */
+  points: Vec3[] | number[];
+  regions: ReachabilityRegion[];
+  /** Δv budget and horizon the set was computed for. */
+  dv_budget_mps?: number;
+  horizon_h?: number;
 }
 
 export interface DemoFrame {
@@ -387,16 +436,23 @@ export interface DemoFrame {
   objects: FrameObject[];
   clouds: FrameCloud[];
   sensors: FrameSensor[];
-  events: SeleneEvent[];
+  events?: SeleneEvent[];
+  reachable?: FrameReachable;
 }
 
 export interface DemoMeta {
-  title: string;
+  title?: string;
   t0_utc: string;
   duration_s: number;
   /** Wall-clock playback length target, seconds (≈120 for the pitch). */
   playback_s?: number;
-  disclaimer: string;
+  /** Scripted playback speed (sim seconds per wall second); derived from playback_s when omitted. */
+  playback_speed?: number;
+  disclaimer?: string;
+  /** Object the story follows (auto-selected by the demo driver). */
+  protagonist_id?: string;
+  /** UTC at which the analyst brief was generated (footer). */
+  brief_generated_utc?: string;
 }
 
 export interface DemoScenario {
