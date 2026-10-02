@@ -19,3 +19,9 @@ One line per decision, newest at the bottom. Format: `date — decision — rati
 - 2026-10-02 — Visual magnitude uses m = M☉ − 2.5 log10(a·π·ρ²·p(φ)/R²) (Lambertian sphere; geometric albedo 2a/3). — Independent surface integration confirmed the π factor; initial implementation was 1.24 mag too faint.
 - 2026-10-02 — Halo/Lyapunov notional objects are quasi-periodic arcs under the ephemeris truth (one-time velocity correction, no station-keeping). — Honest dynamics; adequate over the 14-day demo window.
 - 2026-10-02 — Frontend is mock-first with per-endpoint live switching and a visible BACKEND OFFLINE/MOCK badge. — UI remains demonstrable even if a backend route is slow or missing; no mock data can masquerade as live.
+- 2026-10-02 — IOD admissible region rejects seeds only if unbound w.r.t. BOTH Earth and Moon. — Earth-only hyperbolic test would reject valid NRHO perilune states.
+- 2026-10-02 — UKF sigma points propagated in one stacked ODE system (numba RHS + BodyCache); iterated Gauss-Newton measurement update by default. — 16× faster and avoids uncorrelated integrator error amplified by W0 at α=1e-3; iterated update fixes over-confidence for IOD-sized priors.
+- 2026-10-02 — Default process-noise PSD q = 1e-18 km²/s³. — 40-run NEES study: q=1e-18 keeps NEES inside χ² bounds; 1e-16 is pessimistic.
+- 2026-10-02 — API floats rounded to 9 significant figures, never fixed decimals. — 6-decimal rounding zeroed velocity-covariance blocks.
+- 2026-10-02 — Maneuver gap re-fit only for gaps > 2.5× median cadence; min_updates_before_test raised and real Horizons objects not flagged with point-mass truth. — Avoids false declarations on quiet objects at coarse cadence.
+- 2026-10-02 — MILP tasking surrogate uses rank-weighted diminishing returns with explicit rank binaries and a per-request time budget. — Count-indexed penalties left ~30 % of sensor slots idle; runtime now bounded.
