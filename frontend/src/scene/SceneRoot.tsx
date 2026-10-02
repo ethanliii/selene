@@ -7,14 +7,15 @@
  * R(t0)ᵀR(t), Earth fixed at (−μ,0,0)), so the Earth–Moon line sweeps around and the Moon rides its true
  * ephemeris track at its true distance. Without a basis (backend down) the group is rotated about +z by
  * θ(t) − θ(t0), the mean-element Earth–Moon line angle (planar approximation; the HUD says which one is active).
+ * The axis triad is a 48-px corner gizmo (drei GizmoHelper) instead of a world-space triad at the barycentre.
  */
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrbitControls, Stars } from '@react-three/drei';
+import { GizmoHelper, GizmoViewport, OrbitControls, Stars } from '@react-three/drei';
 import { useRef, type ReactNode } from 'react';
 import * as THREE from 'three';
 import { emAngleAt, inertialDisplayMatrix } from '../lib/ephem';
 import { cursorMs, useSelene } from '../store/useSelene';
-import { Earth, LagrangePoints, Moon, SunLight } from './Bodies';
+import { Earth, LagrangePoints, Moon, MoonInertialOrbit, SunLight } from './Bodies';
 import { CameraRig } from './CameraRig';
 import { CAMERA } from './constants';
 import { FRAME_INFO, FRAME_MATRIX, publishWorldPerPixel } from './frameBus';
@@ -79,7 +80,7 @@ export function SceneRoot({ children }: SceneRootProps) {
       style={{ background: '#05070b' }}
     >
       <color attach="background" args={['#05070b']} />
-      <Stars radius={18} depth={14} count={3500} factor={1.6} saturation={0} fade speed={0} />
+      <Stars radius={18} depth={14} count={6000} factor={2.6} saturation={0.15} fade speed={0} />
       <ambientLight intensity={0.18} />
       <FrameGroup>
         <SunLight />
@@ -89,7 +90,11 @@ export function SceneRoot({ children }: SceneRootProps) {
         <LagrangePoints visible={layers.lagrange} />
         {children}
       </FrameGroup>
+      <MoonInertialOrbit />
       <OrbitControls makeDefault enableDamping dampingFactor={0.08} minDistance={0.02} maxDistance={12} target={CAMERA.target} />
+      <GizmoHelper alignment="bottom-left" margin={[62, 112]} renderPriority={1}>
+        <GizmoViewport axisColors={['#c0504d', '#5aa469', '#4f81bd']} labels={['x', 'y', 'z']} labelColor="#d6e2f0" axisHeadScale={0.8} hideNegativeAxes />
+      </GizmoHelper>
       <CameraRig />
       <ScaleProbe />
       <LabelDeclutter />

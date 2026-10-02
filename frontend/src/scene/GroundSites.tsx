@@ -63,7 +63,7 @@ export function GroundSites({ visible = true, activeIds }: Props) {
           <group key={s.id} position={s.pos}>
             <mesh>
               <sphereGeometry args={[EARTH_RADIUS * (active ? 0.09 : 0.06), 8, 6]} />
-              <meshBasicMaterial color={active ? COLORS.ok : COLORS.sim} />
+              <meshBasicMaterial color={active ? COLORS.ok : '#ffb86b'} />
             </mesh>
             {showLabels && (near || active) && <Label position={[0, 0, 0]} text={s.short} color={active ? COLORS.ok : COLORS.muted} id={`site-${s.id}`} priority={active ? 75 : 30} />}
           </group>

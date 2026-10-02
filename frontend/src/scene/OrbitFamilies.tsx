@@ -84,13 +84,14 @@ export function OrbitFamilies({ data, visible = true, maxPerFamily = DEFAULT_MAX
           const hl = highlight === l.family;
           const dim = highlight !== null && !hl;
           const color = l.nrho92 ? NRHO_COLOR : l.color;
-          const width = l.nrho92 ? 2.4 : hl ? 1.8 : l.nrho ? 1.3 : 1;
-          // Other NRHO-tagged members stay quieter than the highlighted 9:2 so the Moon is not buried under them.
-          const opacity = dim ? 0.1 : l.nrho92 ? 1 : hl ? 0.95 : l.nrho ? 0.42 : l.resonant ? 0.28 : 0.45;
+          const width = l.nrho92 ? 2.4 : hl ? 1.8 : l.nrho ? 1.2 : 1;
+          // Quiet by default (0.3) so the bodies and objects read first; a highlighted family goes to 0.9 and the
+          // 9:2 NRHO is always bright. Other NRHO-tagged members stay quieter than the 9:2.
+          const opacity = dim ? 0.08 : l.nrho92 ? 1 : hl ? 0.9 : l.nrho ? 0.32 : l.resonant ? 0.2 : 0.3;
           return (
             <group key={l.key}>
               <Line points={l.points} color={color} lineWidth={width} transparent opacity={opacity} depthWrite={false} />
-              {l.nrho92 && showLabels && !dim && <Label position={apolune(l.points)} text={`9:2 NRHO · ${l.periodDays.toFixed(2)} d`} color={NRHO_COLOR} id="nrho-9-2" priority={85} />}
+              {l.nrho92 && showLabels && !dim && <Label position={apolune(l.points)} text={`9:2 NRHO · ${l.periodDays.toFixed(2)} d`} color={NRHO_COLOR} id="nrho-9-2" priority={30} />}
             </group>
           );
         })}

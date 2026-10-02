@@ -30,6 +30,8 @@ export type DockTab = 'object' | 'events' | 'brief';
 
 export interface Toast {
   id: number;
+  /** ≤ 12-word plain-English line (what the toast shows); `text` is the full analyst detail (tooltip). */
+  headline: string;
   text: string;
   severity: EventSeverity;
   kind: string;
@@ -64,6 +66,8 @@ export interface SeleneState {
   highlightFamily: string | null;
   /** Families switched off in the legend. */
   hiddenFamilies: string[];
+  /** True once the user has touched the family legend: the default "quiet" set is then no longer re-applied. */
+  familiesTouched: boolean;
   ephemeris: EphemerisBodies | null;
   scenario: DemoScenario | null;
   brief: string;
@@ -71,6 +75,16 @@ export interface SeleneState {
   toasts: Toast[];
   /** Set once the scripted scenario has reached its end (dock switched to Brief). */
   scenarioFinished: boolean;
+  /**
+   * Presenter narration: story events the cursor has crossed, shown ONE AT A TIME (caption + toast) with a wall-clock
+   * dwell per event, so coincident beats (detected → degraded → reachability at the same epoch) and beats that are
+   * seconds apart at story speed are each readable. While `captionQueue` is non-empty or a story-beat caption is
+   * within its dwell, scripted playback crawls instead of racing on (see hooks/usePlayback.ts).
+   */
+  captionQueue: SeleneEvent[];
+  caption: SeleneEvent | null;
+  /** performance.now() at which the current caption's dwell ends. */
+  captionUntilMs: number;
 
   setFrame: (f: FrameMode) => void;
   setT: (t: number) => void;
@@ -99,6 +113,11 @@ export interface SeleneState {
   pushToast: (t: Omit<Toast, 'id'>) => void;
   dismissToast: (id: number) => void;
   setScenarioFinished: (v: boolean) => void;
+  /** Queue story events for narration (chronological; duplicates by t+kind are dropped). */
+  enqueueCaptions: (evs: SeleneEvent[], replace?: boolean) => void;
+  /** Advance the narration: pops the next queued event when the current dwell is over. Returns the event shown. */
+  tickCaptions: (nowMs: number) => SeleneEvent | null;
+  clearCaptions: () => void;
   /** Load a (normalised) demo scenario: sets range, events, brief and rewinds to t0. */
   loadScenario: (s: DemoScenario) => void;
   reset: () => void;
@@ -129,12 +148,16 @@ export const useSelene = create<SeleneState>((set, get) => ({
   families: null,
   highlightFamily: null,
   hiddenFamilies: [],
+  familiesTouched: false,
   ephemeris: null,
   scenario: null,
   brief: '',
-  dockTab: 'events',
+  dockTab: 'object',
   toasts: [],
   scenarioFinished: false,
+  captionQueue: [],
+  caption: null,
+  captionUntilMs: 0,
 
   setFrame: (frame) => set({ frame }),
   setT: (t) => {
@@ -168,10 +191,25 @@ export const useSelene = create<SeleneState>((set, get) => ({
     }),
   setSensors: (sensors) => set({ sensors }),
   setObserverOrbits: (observerOrbits) => set({ observerOrbits }),
-  setFamilies: (families) => set({ families }),
+  setFamilies: (families) =>
+    set((s) => {
+      // Default view keeps the four families that read as "the cislunar highways" (L1 halo N, L2 halo S incl. the
+      // NRHOs, DRO); the Lyapunov and resonant families stay available in the legend. Applied until the user
+      // touches the legend.
+      if (!families || s.familiesTouched) return { families };
+      const keep = (name: string) => {
+        const n = name.toLowerCase();
+        if (n.includes('dro')) return true;
+        if (n.includes('nrho')) return true;
+        if (n.includes('halo') && n.includes('l1') && !n.includes('_s')) return true;
+        if (n.includes('halo') && n.includes('l2') && !n.includes('_n')) return true;
+        return false;
+      };
+      return { families, hiddenFamilies: families.families.map((f) => f.name).filter((n) => !keep(n)) };
+    }),
   setHighlightFamily: (highlightFamily) => set({ highlightFamily }),
-  toggleFamilyVisible: (name) => set((s) => ({ hiddenFamilies: s.hiddenFamilies.includes(name) ? s.hiddenFamilies.filter((n) => n !== name) : [...s.hiddenFamilies, name] })),
-  setFamilyVisible: (name, v) => set((s) => ({ hiddenFamilies: v ? s.hiddenFamilies.filter((n) => n !== name) : s.hiddenFamilies.includes(name) ? s.hiddenFamilies : [...s.hiddenFamilies, name] })),
+  toggleFamilyVisible: (name) => set((s) => ({ familiesTouched: true, hiddenFamilies: s.hiddenFamilies.includes(name) ? s.hiddenFamilies.filter((n) => n !== name) : [...s.hiddenFamilies, name] })),
+  setFamilyVisible: (name, v) => set((s) => ({ familiesTouched: true, hiddenFamilies: v ? s.hiddenFamilies.filter((n) => n !== name) : s.hiddenFamilies.includes(name) ? s.hiddenFamilies : [...s.hiddenFamilies, name] })),
   setEphemeris: (ephemeris) => {
     installEphemeris(ephemeris);
     set({ ephemeris });
@@ -180,11 +218,35 @@ export const useSelene = create<SeleneState>((set, get) => ({
   setDockTab: (dockTab) => set({ dockTab }),
   pushToast: (t) => {
     const id = toastSeq++;
-    set((s) => ({ toasts: [...s.toasts.slice(-4), { ...t, id }] }));
+    // At most two toasts on screen (bottom-right lane): the newest two win.
+    set((s) => ({ toasts: [...s.toasts.slice(-1), { ...t, id }] }));
     setTimeout(() => get().dismissToast(id), TOAST_MS);
   },
   dismissToast: (id) => set((s) => (s.toasts.some((t) => t.id === id) ? { toasts: s.toasts.filter((t) => t.id !== id) } : s)),
   setScenarioFinished: (scenarioFinished) => set({ scenarioFinished }),
+  enqueueCaptions: (evs, replace = false) =>
+    set((s) => {
+      const base = replace ? [] : s.captionQueue;
+      const key = (e: SeleneEvent) => `${e.t}|${e.kind}|${e.object_id ?? ''}`;
+      const seen = new Set(base.map(key));
+      if (!replace && s.caption) seen.add(key(s.caption));
+      const add = evs.filter((e) => !seen.has(key(e)));
+      if (add.length === 0 && !replace) return s;
+      return { captionQueue: [...base, ...add].slice(-CAPTION_QUEUE_MAX), ...(replace ? { caption: null, captionUntilMs: 0 } : {}) };
+    }),
+  tickCaptions: (nowMs) => {
+    const s = get();
+    if (s.caption && nowMs < s.captionUntilMs) return null;
+    const next = s.captionQueue[0];
+    if (!next) {
+      // A paused presenter keeps the current caption on screen; playback lets it fade after its dwell.
+      if (s.caption && s.playing) set({ caption: null });
+      return null;
+    }
+    set({ caption: next, captionQueue: s.captionQueue.slice(1), captionUntilMs: nowMs + captionDwellMs(next, s.captionQueue.length) });
+    return next;
+  },
+  clearCaptions: () => set((s) => (s.caption || s.captionQueue.length ? { caption: null, captionQueue: [], captionUntilMs: 0 } : s)),
   loadScenario: (scenario) =>
     set({
       scenario,
@@ -197,6 +259,9 @@ export const useSelene = create<SeleneState>((set, get) => ({
       playing: false,
       scenarioFinished: false,
       toasts: [],
+      captionQueue: [],
+      caption: null,
+      captionUntilMs: 0,
     }),
   reset: () =>
     set((s) => ({
@@ -210,12 +275,32 @@ export const useSelene = create<SeleneState>((set, get) => ({
       scenario: null,
       brief: '',
       selectedObjectId: null,
-      dockTab: 'events',
+      dockTab: 'object',
       toasts: [],
       scenarioFinished: false,
       highlightFamily: null,
+      captionQueue: [],
+      caption: null,
+      captionUntilMs: 0,
     })),
 }));
+
+const CAPTION_QUEUE_MAX = 8;
+
+/** Wall-clock dwell per narrated event: story beats and alerts 4 s, warnings 3 s, info 2.5 s (shorter when queued up). */
+export function captionDwellMs(e: SeleneEvent, queued = 0): number {
+  const k = e.kind.toLowerCase();
+  const beat = /^(sim_truth|maneuver|burn|maneuver_truth|maneuver_detected|custody_lost|tasking|tasking_update|tasked|custody_regained|brief|brief_ready)$/.test(k);
+  const base = beat || e.severity === 'alert' ? 4000 : e.severity === 'warn' ? 3000 : 2500;
+  return queued >= 4 ? Math.round(base * 0.7) : base;
+}
+
+/** True while scripted playback should crawl so the audience can read the current narration. */
+export function narrationHold(s: Pick<SeleneState, 'scenario' | 'speed' | 'captionQueue' | 'caption' | 'captionUntilMs'>, nowMs: number): boolean {
+  if (!s.scenario || s.speed < 1000) return false;
+  if (s.captionQueue.length > 0) return true;
+  return !!s.caption && nowMs < s.captionUntilMs && s.caption.kind !== 'observation';
+}
 
 /** Current UTC Date for the time cursor. */
 export function cursorDate(t0Iso: string, tSec: number): Date {

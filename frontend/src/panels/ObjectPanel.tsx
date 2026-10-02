@@ -21,12 +21,13 @@ import { moonDistanceKm, rotPosToGcrfKm } from '../lib/ephem';
 import { trackEval } from '../lib/tracks';
 import { MOON_ROT } from '../scene/constants';
 import { cursorDate, fmtAge, fmtElapsed, fmtUtc, useSelene } from '../store/useSelene';
+import { Icon } from './icons';
 import { SigmaSparkline, type SigmaPoint } from './SigmaSparkline';
 
-function Field({ k, v, title }: { k: string; v: ReactNode; title?: string }) {
+function Field({ k, v, title, nocase }: { k: string; v: ReactNode; title?: string; nocase?: boolean }) {
   return (
     <div className="field" title={title}>
-      <span className="k">{k}</span>
+      <span className={`k${nocase ? ' nocase' : ''}`}>{k}</span>
       <span className="v">{v}</span>
     </div>
   );
@@ -66,6 +67,18 @@ function CatalogList() {
     { title: 'SIMULATED · notional actors', kind: 'simulated', items: catalog.filter((c) => c.kind === 'simulated') },
     { title: 'REAL · JPL Horizons ephemerides', kind: 'horizons', items: catalog.filter((c) => c.kind === 'horizons') },
   ];
+  const scenario = useSelene((s) => s.scenario);
+  if (catalog.length === 0) {
+    return (
+      <div>
+        <h3 className="panel-title">Object</h3>
+        <p className="muted">Loading the catalog…</p>
+        {Array.from({ length: 7 }, (_, i) => (
+          <div key={i} className="skeleton" style={{ width: `${88 - (i % 3) * 14}%` }} />
+        ))}
+      </div>
+    );
+  }
   return (
     <div>
       <h3 className="panel-title">Object</h3>
@@ -73,6 +86,11 @@ function CatalogList() {
       {live && tracksTotal > 0 && tracksLoaded < tracksTotal && (
         <p className="muted small">
           Loading backend trajectories… {tracksLoaded}/{tracksTotal}
+        </p>
+      )}
+      {!scenario && (
+        <p className="group-note" title="No orbit determination or tasking has evaluated the idle catalog; custody is measured only inside a scenario (cloud σ thresholds) or once a tasking run is wired in.">
+          Custody not evaluated in the idle view — play the scenario or run tasking.
         </p>
       )}
       {groups
@@ -94,11 +112,6 @@ function CatalogList() {
                         <span>{c.id}</span>
                         <span className="kind">{c.kind === 'simulated' ? 'SIMULATED' : 'REAL · JPL HORIZONS'}</span>
                         {lv && lv.custody !== 'unknown' && <span className={`tag ${lv.custody === 'held' ? 'ok' : lv.custody === 'degraded' ? 'warn' : 'alert'}`}>{lv.custody.toUpperCase()}</span>}
-                        {lv && lv.custody === 'unknown' && (
-                          <span className="tag muted" title="No OD/tasking has evaluated this object; custody is not measured in the idle catalog view">
-                            NO OD
-                          </span>
-                        )}
                         {live && !drawn.has(c.id) && <span className={`tag ${err ? 'alert' : 'muted'}`}>{err ? 'NO DATA IN WINDOW' : 'LOADING'}</span>}
                       </div>
                       <div className="text">
@@ -153,7 +166,7 @@ export function ObjectPanel() {
   // 'unknown' (idle live mode, no OD/tasking run) is shown as N/A — never as a measured 'held'.
   const custody = live?.custody ?? 'unknown';
   const custodyTag = custody === 'held' ? 'ok' : custody === 'degraded' ? 'warn' : custody === 'lost' ? 'alert' : 'muted';
-  const custodyLabel = custody === 'held' ? 'CUSTODY' : custody === 'unknown' ? 'CUSTODY N/A · NO OD' : custody.toUpperCase();
+  const custodyLabel = custody === 'held' ? 'CUSTODY HELD' : custody === 'degraded' ? 'CUSTODY DEGRADED' : custody === 'lost' ? 'CUSTODY LOST' : 'CUSTODY NOT EVALUATED';
   const custodyTitle = custody === 'unknown' ? 'No orbit determination or tasking has evaluated this object (OD/tasking endpoints pending); custody is not measured in the idle catalog view.' : `Custody ${custody} (scenario estimate from the uncertainty cloud)`;
   const myEvents = events.filter((e) => e.object_id === id && e.t <= tSec);
   const observations = myEvents.filter((e) => e.kind === 'observation');
@@ -200,8 +213,8 @@ export function ObjectPanel() {
     <div>
       <h3 className="panel-title">
         Object{' '}
-        <button className="toggle" style={{ float: 'right' }} onClick={() => select(null)}>
-          ✕
+        <button className="toggle" style={{ float: 'right' }} onClick={() => select(null)} title="Clear selection" aria-label="Clear selection">
+          <Icon name="close" style={{ marginRight: 0, verticalAlign: '-2px' }} />
         </button>
       </h3>
       <div className="obj-head">
@@ -239,7 +252,7 @@ export function ObjectPanel() {
       {gcrfErr && stateSource !== 'backend' && <p className="muted small">GCRF track: {gcrfErr}</p>}
       {(scenario || sigma !== undefined || lastObs) && (
         <>
-          <Field k="σ_pos √tr P" v={sigma !== undefined ? <span className="mono">{sigma >= 100 ? sigma.toFixed(0) : sigma.toFixed(1)} km</span> : <span className="muted">—</span>} />
+          <Field k="σ_pos √tr P" nocase v={sigma !== undefined ? <span className="mono">{sigma >= 100 ? sigma.toFixed(0) : sigma.toFixed(1)} km</span> : <span className="muted">—</span>} />
           <Field k="Last obs" v={lastObs ? <span className="mono">{fmtAge(tSec - lastObs.t)} ago · {String(lastObs.data?.sensor_id ?? '')}</span> : <span className="muted">none in window</span>} />
         </>
       )}
@@ -320,7 +333,7 @@ export function ObjectPanel() {
         Observations <span className="mono muted">({observations.length})</span>
       </h3>
       {observations.length === 0 ? (
-        <p className="muted small">{scenario ? 'No observations yet in this window.' : 'No observation history loaded (tasking/OD endpoints pending — mock).'}</p>
+        <p className="muted small">{scenario ? 'No observations yet in this window.' : 'No observation history in the idle view — observations appear inside a scenario.'}</p>
       ) : (
         <table className="tbl">
           <thead>

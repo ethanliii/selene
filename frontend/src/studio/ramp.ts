@@ -7,7 +7,9 @@
  * OKLab conversions: Björn Ottosson, "A perceptual color space for image processing" (2020).
  */
 
-export const BLIND_COLOR = '#070a10';
+/** Blind ("no sensor") cells: dark red base + hatch stroke, so blind reads as a finding, not as empty background. */
+export const BLIND_COLOR = '#2a0e12';
+export const BLIND_HATCH = 'rgba(120, 40, 50, 0.55)';
 /** Stops dark → light; OKLab L ≈ 0.33, 0.57, 0.78, 0.96 (monotone). */
 const STOPS = ['#133b52', '#1f7ea8', '#4cc9f0', '#dff7ff'];
 

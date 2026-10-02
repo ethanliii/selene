@@ -493,7 +493,7 @@ export function buildMockScenario(): DemoScenario {
     },
     {
       t: T_REACH,
-      kind: 'entered_region',
+      kind: 'reachability_alert',
       severity: 'warn',
       text: `REACHABILITY (Δv ≤ ${2 * SIG_DV_MPS} m/s, 72 h, ${N_SEEDS} samples): ${(100 * l1.fraction).toFixed(0)}% of the Δv-consistent set enters the L1 gateway corridor${l1.earliest_h !== null ? ` (earliest ${l1.earliest_h} h after burn)` : ''}; NRHO corridor ${(100 * reach.regions[2].fraction).toFixed(0)}%. Notional allied relay ${RELAY} is in the NRHO-class orbit. σ_pos now ${km(sig(T_REACH))} km.`,
       object_id: PROTAGONIST,
@@ -567,7 +567,7 @@ export function buildMockScenario(): DemoScenario {
 
   const scenario: DemoScenario = {
     meta: {
-      title: 'Unannounced DRO departure (mock, browser CR3BP)',
+      title: 'Unannounced DRO departure',
       t0_utc: SCENARIO_T0,
       duration_s: DURATION,
       playback_s: 120,
@@ -575,6 +575,9 @@ export function buildMockScenario(): DemoScenario {
       disclaimer: 'All objects and events are SIMULATED and attributed to a notional actor. Mock scenario generated in the browser; the backend scenario uses DE440s dynamics and the full OD/tasking stack.',
       protagonist_id: PROTAGONIST,
       brief_generated_utc: new Date(t0ms + T_BRIEF * 1000).toISOString(),
+      // Custody thresholds the mock's custody labels were computed with (the KPI strip and keys quote these).
+      custody_km: CUSTODY.degraded_km,
+      lost_km: CUSTODY.lost_km,
     },
     frames,
     events: events.sort((a, b) => a.t - b.t),

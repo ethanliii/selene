@@ -5,7 +5,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LAGRANGE_ND, L_STAR_KM, MU, ORBITS, orbitOutlineND, R_EARTH_KM, R_MOON_KM } from './model';
-import { BLIND_COLOR, RAMP_LUT, rampGradientCss } from './ramp';
+import { BLIND_COLOR, BLIND_HATCH, RAMP_LUT, rampCss, rampGradientCss } from './ramp';
 import { REASON_CODES, REASON_LABELS, type BlindReason, type Vec3 } from './types';
 
 export interface HeatmapProps {
@@ -98,7 +98,7 @@ export function CoverageHeatmap({ x, y, values, reasons, vmax, caption, format, 
   const field = useMemo(() => {
     const img = new ImageData(nx, ny);
     const d = img.data;
-    const blind = [7, 10, 16];
+    const blind = [42, 14, 18]; // #2a0e12 — dark red: "no sensor", distinct from low coverage
     for (let ix = 0; ix < nx; ix++) {
       for (let iy = 0; iy < ny; iy++) {
         const v = values[ix * ny + iy] ?? 0;
@@ -133,24 +133,59 @@ export function CoverageHeatmap({ x, y, values, reasons, vmax, caption, format, 
     ctx.fillStyle = BLIND_COLOR;
     ctx.fillRect(0, 0, size.w, size.h);
 
-    // field (nearest-neighbour so cells stay crisp)
-    const off = document.createElement('canvas');
-    off.width = nx;
-    off.height = ny;
-    off.getContext('2d')?.putImageData(field, 0, 0);
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, size.w, size.h);
-    ctx.imageSmoothingEnabled = true;
+    // Field. Cells ≥ 5 px are drawn individually with a 1 px gap (a grid of tiles, not a staircase); finer grids
+    // fall back to the nearest-neighbour image. Blind cells are dark red with a diagonal hatch.
+    const cw = size.w / nx, ch = size.h / ny;
+    const hatch = (() => {
+      const c = document.createElement('canvas');
+      c.width = c.height = 8;
+      const g = c.getContext('2d')!;
+      g.fillStyle = BLIND_COLOR;
+      g.fillRect(0, 0, 8, 8);
+      g.strokeStyle = BLIND_HATCH;
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(-2, 10);
+      g.lineTo(10, -2);
+      g.moveTo(-2, 2);
+      g.lineTo(2, -2);
+      g.moveTo(6, 10);
+      g.lineTo(10, 6);
+      g.stroke();
+      return ctx.createPattern(c, 'repeat');
+    })();
+    if (cw >= 5 && ch >= 5) {
+      ctx.fillStyle = hatch ?? BLIND_COLOR;
+      ctx.fillRect(0, 0, size.w, size.h);
+      for (let ix = 0; ix < nx; ix++) {
+        for (let iy = 0; iy < ny; iy++) {
+          const v = values[ix * ny + iy] ?? 0;
+          if (v <= 0) continue;
+          const u = Math.max(0, Math.min(1, v / Math.max(vmax, 1e-9)));
+          ctx.fillStyle = rampCss(u);
+          const px0 = ix * cw, py0 = (ny - 1 - iy) * ch;
+          ctx.fillRect(px0 + 0.5, py0 + 0.5, cw - 1, ch - 1);
+        }
+      }
+    } else {
+      const off = document.createElement('canvas');
+      off.width = nx;
+      off.height = ny;
+      off.getContext('2d')?.putImageData(field, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(off, 0, 0, size.w, size.h);
+      ctx.imageSmoothingEnabled = true;
+    }
 
-    const mono = '10px "IBM Plex Mono", ui-monospace, Menlo, monospace';
+    const mono = '500 12px "IBM Plex Mono", ui-monospace, Menlo, monospace';
     ctx.font = mono;
     ctx.textBaseline = 'middle';
-    /** Text on a dark backing box so labels stay legible over bright cells. */
+    /** Text with a 2 px dark halo so labels stay legible over bright cells. */
     const text = (t: string, px: number, py: number, color: string) => {
-      const w = ctx.measureText(t).width;
-      const top = ctx.textBaseline === 'bottom' ? py - 11 : py - 6;
-      ctx.fillStyle = 'rgba(5, 7, 11, 0.72)';
-      ctx.fillRect(px - 2, top, w + 4, 12);
+      ctx.lineJoin = 'round';
+      ctx.lineWidth = 4;
+      ctx.strokeStyle = 'rgba(5, 7, 11, 0.9)';
+      ctx.strokeText(t, px, py);
       ctx.fillStyle = color;
       ctx.fillText(t, px, py);
     };
@@ -314,8 +349,8 @@ export function CoverageHeatmap({ x, y, values, reasons, vmax, caption, format, 
         )}
       </div>
       <div className="colorbar" ref={barRef}>
-        <span className="cb-min mono">blind</span>
-        <span className="cb-swatch" style={{ background: BLIND_COLOR }} aria-hidden />
+        <span className="cb-min mono" title="No sensor can detect the reference object in this cell">blind (no sensor)</span>
+        <span className="cb-swatch hatched" aria-hidden />
         <span className="cb-ramp" style={{ background: rampGradientCss() }} aria-hidden />
         <span className="cb-ticks mono" aria-hidden>
           {(ticks ?? [0.25, 0.5, 0.75, 1].map((f) => f * vmax)).map((v, i, arr) => (

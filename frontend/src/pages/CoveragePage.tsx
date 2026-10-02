@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api } from '../api/client';
 import type { CoveragePresets } from '../api/types';
+import { Icon } from '../panels/icons';
 import { TopBar } from '../panels/TopBar';
 import { studioApi } from '../studio/api';
 import { CoverageHeatmap } from '../studio/CoverageHeatmap';
@@ -280,6 +281,7 @@ export function CoveragePage() {
     return REASON_CODES.map((r, i) => ({ reason: r as BlindReason, pct: (100 * hist[i]) / Math.max(1, n) })).filter((x) => x.pct >= 0.05 || x.reason === 'covered');
   }, [run, live, mode, tIdx, frame]);
 
+  const topBlind = legend.filter((r) => r.reason !== 'covered').sort((a, b) => b.pct - a.pct)[0];
   const epochIso = run?.res.epochs[tIdx];
   const sunDir = epochIso && mode === 'epoch' ? sunDirAt(Date.parse(epochIso)) : undefined;
   const presetInfo = presetList.find((p) => p.id === preset) ?? presetList[0];
@@ -308,7 +310,7 @@ export function CoveragePage() {
           </div>
           <p className="hint">
             {run && !run.mock ? presetInfo.live_hint : presetInfo.hint}
-            {livePresets && <span className="muted"> · list from /api/coverage/presets</span>}
+            {livePresets && <span className="muted"> · backend preset list</span>}
           </p>
 
           <h3>Time window</h3>
@@ -338,7 +340,14 @@ export function CoveragePage() {
 
           <div className="btn-row">
             <button className="primary wide" onClick={doRun} disabled={busy}>
-              {busy ? 'Running…' : '▶ Run coverage'}
+              {busy ? (
+                'Running…'
+              ) : (
+                <>
+                  <Icon name="play" size={15} />
+                  Run coverage
+                </>
+              )}
             </button>
           </div>
           <div className="status-line">
@@ -346,33 +355,39 @@ export function CoveragePage() {
             {run && (
               <>
                 <div>
-                  source: {run.mock ? <span className="badge-mock">MOCK · browser model</span> : <span className="badge-live">LIVE · /api/coverage</span>} · {run.elapsed_ms.toFixed(0)} ms
+                  source:{' '}
+                  {run.mock ? (
+                    <span className="tag schematic" title="Browser-side schematic model: the backend coverage engine was not reachable. Relative patterns only.">
+                      SCHEMATIC MODEL
+                    </span>
+                  ) : (
+                    <span className="tag live-src" title="Backend coverage engine (/api/coverage): DE440s geometry, named sensor catalogue">
+                      LIVE · BACKEND
+                    </span>
+                  )}{' '}
+                </div>
+                <div>
+                  <span className="nowrap">{run.elapsed_ms.toFixed(0)}&nbsp;ms</span> · epochs {nEpochs} · cells {run.res.grid.x.length * run.res.grid.y.length}
                 </div>
                 <div>sensors: {run.res.sensors_used?.join(', ') ?? '(backend default)'}</div>
-                <div>
-                  epochs {nEpochs} · cells {run.res.grid.x.length * run.res.grid.y.length}
-                </div>
               </>
             )}
           </div>
 
-          {run && !run.mock ? (
-            <>
-              <h3>Assumptions (live backend)</h3>
+          <details className="explainer-box">
+            <summary>{run && !run.mock ? 'Assumptions (backend model)' : 'Assumptions (schematic browser model)'}</summary>
+            {run && !run.mock ? (
               <p className="hint">
-                Sensor catalogue and constraint set are the backend's (backend/selene/sensors): the named ground sites and space observers listed above, each with its own elevation mask, twilight, Sun/Moon/Earth exclusion, shadow and photometric
-                tests; the reference object is a diffuse sphere of the radius and albedo set here. {run.res.averaged?.note ?? ''} Sun compass on the map is the mean synodic phase (±7°); the backend itself uses DE440s.
+                Sensor catalogue and constraint set are the backend's: the named ground sites and space observers listed above, each with its own elevation mask, twilight, Sun/Moon/Earth exclusion, shadow and photometric tests; the reference object is a
+                diffuse sphere of the radius and albedo set here. {run.res.averaged?.note ?? ''} Sun compass on the map is the mean synodic phase (±7°); the backend itself uses DE440s.
               </p>
-            </>
-          ) : (
-            <>
-              <h3>Assumptions (mock)</h3>
+            ) : (
               <p className="hint">
-                3 notional equatorial ground sites 120° apart (m_lim 19.5, elevation &gt; 20°, Sun &lt; −12°, Moon avoidance 5–25° scaled with illuminated fraction). Space observers: Sun 40°, Moon 10°, Earth 10° exclusion; m_lim 18.0 (GEO) / 18.5 (L2 halo, DRO).
-                Umbra cones for Earth and Moon. Sun direction from the mean synodic phase (±7°). Schematic host orbits; FOV/slew assumed schedulable within an epoch step.
+                3 notional equatorial ground sites 120° apart (m_lim 19.5, elevation &gt; 20°, Sun &lt; −12°, Moon avoidance 5–25° scaled with illuminated fraction). Space observers: Sun 40°, Moon 10°, Earth 10° exclusion; m_lim 18.0 (GEO) / 18.5 (L2 halo, DRO). Umbra
+                cones for Earth and Moon. Sun direction from the mean synodic phase (±7°). Schematic host orbits; FOV/slew assumed schedulable within an epoch step.
               </p>
-            </>
-          )}
+            )}
+          </details>
         </aside>
 
         {/* ---------------- centre: heatmap ---------------- */}
@@ -392,19 +407,32 @@ export function CoveragePage() {
                 Orbit outlines
               </button>
             </span>
-            {run?.mock && <span className="badge-mock">MOCK</span>}
+            {run?.mock && (
+              <span className="tag schematic" title="Browser-side schematic model (backend unreachable)">
+                SCHEMATIC MODEL
+              </span>
+            )}
             {live && mode === 'epoch' && framesLoaded < nEpochs && (
-              <span className="muted mono" style={{ fontSize: 11 }}>
+              <span className="muted mono" style={{ fontSize: 12 }}>
                 frames {framesLoaded}/{nEpochs}
               </span>
             )}
+            <span className="spacer" />
             {derived && (
-              <span>
-                MEAN <b>{derived.meanPct.toFixed(1)}%</b>
+              <span className="kpi-tiles">
+                <span className="tile" title="Mean coverage over the window: fraction of slice cells with ≥ 1 detecting sensor, averaged over epochs">
+                  <span className="k">{showEpochField ? 'coverage · this epoch' : 'mean coverage'}</span>
+                  <span className="v">{(showEpochField ? (derived.perEpochPct[tIdx] ?? derived.meanPct) : derived.meanPct).toFixed(1)}%</span>
+                </span>
+                <span className="tile warn" title="Largest blind-spot cause by share of slice cells">
+                  <span className="k">top blind reason</span>
+                  <span className="v">{topBlind ? `${REASON_LABELS[topBlind.reason].replace(/\s*\(.*\)$/, '')} · ${topBlind.pct.toFixed(0)}%` : '—'}</span>
+                </span>
               </span>
             )}
           </div>
 
+          {busy && <div className="progress-thin" role="progressbar" aria-label="Computing coverage" />}
           {run && derived ? (
             <CoverageHeatmap
               x={run.res.grid.x}
@@ -420,12 +448,12 @@ export function CoveragePage() {
               overlayFamilies={families}
             />
           ) : (
-            <div className="center-empty">{busy ? 'Computing coverage field…' : 'Run coverage to render the field.'}</div>
+            <div className="center-empty">{busy ? '' : 'Run coverage to render the field.'}</div>
           )}
 
           {run && (
             <div className="time-row">
-              <span className="muted mono" style={{ fontSize: 11 }}>
+              <span className="muted mono" style={{ fontSize: 12 }}>
                 {mode === 'epoch' ? `EPOCH ${tIdx + 1}/${nEpochs}` : `AVERAGE OF ${nEpochs} EPOCHS`}
               </span>
               <input type="range" min={0} max={Math.max(0, nEpochs - 1)} value={tIdx} onChange={(e) => setTIdx(Number(e.target.value))} disabled={mode !== 'epoch'} aria-label="Epoch" />
@@ -433,8 +461,8 @@ export function CoveragePage() {
             </div>
           )}
           {frameErr && mode === 'epoch' && live && <div className="status-line err">Per-epoch frame failed: {frameErr}</div>}
-          {busy && <div className="center-busy">COMPUTING…</div>}
-          {!busy && live && mode === 'epoch' && !frame && <div className="center-busy">LOADING EPOCH {tIdx + 1}…</div>}
+          {busy && <div className="center-busy quiet" />}
+          {!busy && live && mode === 'epoch' && !frame && <div className="progress-thin" role="progressbar" aria-label="Loading epoch" />}
         </section>
 
         {/* ---------------- right: why blind + series ---------------- */}
@@ -462,8 +490,8 @@ export function CoveragePage() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={derived.series} margin={{ top: 8, right: 12, bottom: 4, left: -14 }}>
                   <CartesianGrid stroke="#1c2733" vertical={false} />
-                  <XAxis dataKey="k" tick={{ fill: '#8d9db3', fontSize: 11 }} tickFormatter={(k: number) => derived.series[k]?.t.slice(5, 11) ?? ''} stroke="#1c2733" minTickGap={28} />
-                  <YAxis domain={[0, 100]} tick={{ fill: '#8d9db3', fontSize: 11 }} stroke="#1c2733" unit="%" />
+                  <XAxis dataKey="k" tick={{ fill: '#8d9db3', fontSize: 12 }} tickFormatter={(k: number) => derived.series[k]?.t.slice(5, 11) ?? ''} stroke="#1c2733" minTickGap={28} />
+                  <YAxis domain={[0, 100]} tick={{ fill: '#8d9db3', fontSize: 12 }} stroke="#1c2733" unit="%" />
                   <Tooltip
                     content={({ active, payload }) =>
                       active && payload && payload.length ? (

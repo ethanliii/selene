@@ -16,6 +16,8 @@ import {
   REASON_CODES,
   type ArchitectureEvaluateRequest,
   type ArchitectureEvaluateResponse,
+  type ArchitectureScore,
+  type CandidateOrbit,
   type CoverageFrame,
   type CoverageRequest,
   type CoverageResponse,
@@ -161,6 +163,98 @@ export const studioApi = {
     if (!Array.isArray(data.coverage)) throw new StudioApiError(502, '/coverage', 'unexpected response shape from backend');
     return adaptLiveFrame(data);
   },
-  architectureEvaluate: (req: ArchitectureEvaluateRequest) =>
-    postWithFallback<ArchitectureEvaluateResponse>('/architecture/evaluate', req, () => mockArchitectureEvaluate(req)),
+  /**
+   * POST /api/architecture/evaluate. The backend route owns a different contract (platform names, `ground`,
+   * n_mc ≤ 16, horizon ≤ 7 d, a work-unit guard) and a richer score object; `toLiveArchitecture` /
+   * `adaptLiveArchitecture` translate both ways. Offline / 404 → the browser schematic model (mock: true).
+   */
+  architectureEvaluate: async (req: ArchitectureEvaluateRequest): Promise<Result<ArchitectureEvaluateResponse>> => {
+    const live = toLiveArchitecture(req);
+    const r = await postWithFallback<LiveArchitectureResponse | ArchitectureEvaluateResponse>('/architecture/evaluate', live, () => mockArchitectureEvaluate(req));
+    if (r.mock) return r as Result<ArchitectureEvaluateResponse>;
+    const data = r.data as LiveArchitectureResponse;
+    if (!Array.isArray(data.scores)) throw new StudioApiError(502, '/architecture/evaluate', 'unexpected response shape from backend');
+    return { ...r, data: adaptLiveArchitecture(data, live) };
+  },
 };
+
+// ---- architecture: live contract adapters -----------------------------------------------------
+const LIVE_PLATFORM: Record<CandidateOrbit, string> = { GEO: 'geo', L1_halo: 'l1_halo', L2_halo: 'l2_halo_S', DRO: 'dro', resonant_3_1: 'resonant_3_1' };
+/** Backend caps (backend/selene/api/routes/architecture.py): n_mc ≤ 16, horizon ≤ 7 d, architectures × draws × slots ≤ 12 000. */
+const LIVE_MAX_N_MC = 16;
+const LIVE_MAX_HORIZON_D = 7;
+const LIVE_MAX_WORK_UNITS = 12_000;
+
+export interface LiveArchitectureRequest {
+  architectures: { name: string; ground: boolean; sensors: { platform: string; aperture_m: number; limiting_mag: number; fov_deg: number; slew_rate_deg_s: number; phase: number }[] }[];
+  n_mc: number;
+  horizon_days: number;
+  seed: number;
+  slot_min: number;
+  workers: number;
+}
+
+export interface LiveArchitectureScore {
+  name: string;
+  coverage_pct: number;
+  custody_pct: number;
+  custody_pct_null?: number;
+  revisit_mean_h: number;
+  revisit_p95_h?: number | null;
+  detection_latency_mean_h?: number | null;
+  detection_latency_p95_h?: number | null;
+  detection_latency_censored_mean_h?: number | null;
+  detection_latency_censored_p95_h?: number | null;
+  detections_pct?: number | null;
+  revisit_censored_objects_pct?: number;
+  n_burns?: number;
+  n_detected?: number;
+  n_space_sensors?: number;
+  notes?: string;
+}
+
+export interface LiveArchitectureResponse {
+  scores: LiveArchitectureScore[];
+  meta?: { n_mc?: number; timing?: { total_s?: number }; method_notes?: unknown; custody_threshold_km?: number };
+  disclaimer?: string;
+}
+
+/** Clamp to the backend caps and pick the coarsest slot that satisfies the work-unit guard (20 → 240 min). */
+export function toLiveArchitecture(req: ArchitectureEvaluateRequest): LiveArchitectureRequest {
+  const n_mc = Math.max(1, Math.min(LIVE_MAX_N_MC, Math.round(req.n_mc)));
+  const horizon_days = Math.max(0.5, Math.min(LIVE_MAX_HORIZON_D, req.horizon_days));
+  const nArch = Math.max(1, req.architectures.length);
+  const units = (slot: number) => nArch * n_mc * Math.floor((horizon_days * 1440) / slot);
+  let slot_min = 20;
+  while (units(slot_min) > LIVE_MAX_WORK_UNITS && slot_min < 240) slot_min += 10;
+  return {
+    architectures: req.architectures.map((a) => ({
+      name: a.name,
+      ground: a.ground_network,
+      sensors: a.sensors.map((s) => ({ platform: LIVE_PLATFORM[s.orbit] ?? 'dro', aperture_m: s.aperture_m, limiting_mag: s.limiting_mag, fov_deg: s.fov_deg, slew_rate_deg_s: s.slew_rate_dps, phase: Math.min(0.99, Math.max(0, s.phase)) })),
+    })),
+    n_mc,
+    horizon_days,
+    seed: req.seed ?? 0,
+    slot_min: Math.min(240, slot_min),
+    workers: 2,
+  };
+}
+
+/** Backend score → studio score (latency = censored statistics, matching the explainer's definition). */
+export function adaptLiveArchitecture(live: LiveArchitectureResponse, req: LiveArchitectureRequest): ArchitectureEvaluateResponse {
+  const horizonH = req.horizon_days * 24;
+  const scores: ArchitectureScore[] = live.scores.map((s) => ({
+    name: s.name,
+    coverage_pct: s.coverage_pct,
+    custody_pct: s.custody_pct,
+    revisit_h: s.revisit_mean_h,
+    detect_latency_h_mean: s.detection_latency_censored_mean_h ?? s.detection_latency_mean_h ?? horizonH,
+    detect_latency_h_p95: s.detection_latency_censored_p95_h ?? s.detection_latency_p95_h ?? horizonH,
+    n_mc: live.meta?.n_mc ?? req.n_mc,
+    n_sensors: s.n_space_sensors,
+    undetected_pct: typeof s.detections_pct === 'number' ? Math.max(0, 100 - s.detections_pct) : undefined,
+    never_observed_pct: s.revisit_censored_objects_pct,
+  }));
+  return { scores, mock: false, method: `backend Monte Carlo · ${req.n_mc} draws · ${req.horizon_days} d · ${req.slot_min}-min slots · custody threshold ${live.meta?.custody_threshold_km ?? 100} km` };
+}

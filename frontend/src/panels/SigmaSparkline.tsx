@@ -24,19 +24,19 @@ export function SigmaSparkline({ data, cursorH }: { data: SigmaPoint[]; cursorH:
               <stop offset="100%" stopColor="#ffb86b" stopOpacity={0.02} />
             </linearGradient>
           </defs>
-          <XAxis dataKey="h" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 11, fill: '#8d9db3' }} tickFormatter={(v: number) => `${v}h`} stroke="#1c2733" tickLine={false} />
+          <XAxis dataKey="h" type="number" domain={['dataMin', 'dataMax']} tick={{ fontSize: 12, fill: '#8d9db3' }} tickFormatter={(v: number) => `${v}h`} stroke="#1c2733" tickLine={false} />
           <YAxis
             scale={log ? 'log' : 'linear'}
             domain={log ? [Math.max(0.1, min / 2), max * 1.5] : [0, 'auto']}
             allowDataOverflow
             width={38}
-            tick={{ fontSize: 11, fill: '#8d9db3' }}
+            tick={{ fontSize: 12, fill: '#8d9db3' }}
             tickFormatter={(v: number) => (v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v >= 10 ? v.toFixed(0) : v.toFixed(1))}
             stroke="#1c2733"
             tickLine={false}
           />
           <Tooltip
-            contentStyle={{ background: '#0b1016', border: '1px solid #1c2733', fontSize: 11, fontFamily: 'var(--font-mono)' }}
+            contentStyle={{ background: '#0b1016', border: '1px solid #1c2733', fontSize: 12, fontFamily: 'var(--font-mono)' }}
             labelFormatter={(v) => `T+${Number(v).toFixed(1)} h`}
             formatter={(v: number) => [`${v >= 100 ? v.toFixed(0) : v.toFixed(1)} km`, 'σ_pos']}
           />

@@ -37,12 +37,14 @@ export const LAGRANGE_ROT: { name: 'L1' | 'L2' | 'L3' | 'L4' | 'L5'; pos: Vec3 }
 export const SYNODIC_RATE_RAD_S = (2 * Math.PI) / (27.28 * 86400);
 
 /**
- * Camera defaults (scene units). The overview looks at the Earth–Moon system from the south-west, 32° above the
- * plane: Earth, L1/L2, the full DRO/halo families and the NRHO's southward dip fit a 16:9 viewport.
+ * Camera defaults (scene units). The overview looks at the Earth–Moon system from the south, 31° above the plane,
+ * far enough back that Earth, Moon, L1/L2 and the L4/L5 triangle all fit a 16:9 viewport (the Earth keeps a
+ * minimum on-screen size through its glow sprite, Bodies.tsx).
  */
+/** Default framing: Earth, Moon, L1–L5 (L4/L5 at y = ±0.866) all inside the 16:9 viewport above the timeline. */
 export const CAMERA = {
-  position: [0.6, -1.42, 0.9] as Vec3,
-  target: [0.54, 0.0, -0.03] as Vec3,
+  position: [0.5, -1.9, 1.08] as Vec3,
+  target: [0.5, -0.1, -0.03] as Vec3,
   near: 1e-4,
   far: 50,
   fov: 38,
@@ -102,7 +104,7 @@ export const COLORS = {
   ok: '#2dd4bf',
   warn: '#f5b700',
   alert: '#ff4d4f',
-  sim: '#ffb86b',
+  sim: '#c9b27a',
   muted: '#7c8da3',
   text: '#d6e2f0',
   grid: '#1c2733',

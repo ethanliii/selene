@@ -560,6 +560,8 @@ export interface SeleneEvent {
   kind: EventKind;
   severity: EventSeverity;
   text: string;
+  /** ≤ 12-word plain-English headline (served by the backend, else derived in demo/headline.ts at load). */
+  headline?: string;
   object_id?: string;
   /**
    * Optional structured payload. Conventions used by the panels:
@@ -577,10 +579,13 @@ export interface FrameObject {
   pos_rot: Vec3;
   /** GCRF position, km (optional; backend may provide both). */
   pos_gcrf_km?: Vec3;
-  /** 'unknown' = no OD/tasking has evaluated this object (idle catalog view): not a measured status. */
+  /** 'unknown' = no OD/tasking has evaluated this object (idle catalog view): not a measured status.
+   *  The backend bundle serves 'CUSTODY' | 'DEGRADED' | 'LOST' (+ `custody_ui`); demo/normalize.ts maps both. */
   custody: 'held' | 'degraded' | 'lost' | 'unknown';
-  /** sqrt(trace of position covariance), km. */
+  custody_ui?: string;
+  /** sqrt(trace of position covariance), km (`sigma_km` is the backend alias). */
   sigma_pos_km?: number;
+  sigma_km?: number;
 }
 
 export interface FrameCloud {
@@ -616,11 +621,23 @@ export interface FrameReachable {
   horizon_h?: number;
 }
 
+/** One tracklet (or tasking look) taken in a frame. The backend lists every tracklet here even when the events
+ *  feed thins space-observer follow-ups to one entry per 6 h; rows with `note` and no residual are linear-covariance
+ *  tasking looks without a measurement realisation. */
+export interface FrameObservation {
+  sensor_id: string;
+  object_id: string;
+  residual_arcsec?: number | null;
+  magnitude?: number | null;
+  note?: string;
+}
+
 export interface DemoFrame {
   t: number;
   objects: FrameObject[];
   clouds: FrameCloud[];
   sensors: FrameSensor[];
+  observations?: FrameObservation[];
   events?: SeleneEvent[];
   reachable?: FrameReachable;
 }
@@ -638,6 +655,10 @@ export interface DemoMeta {
   protagonist_id?: string;
   /** UTC at which the analyst brief was generated (footer). */
   brief_generated_utc?: string;
+  /** Custody thresholds on the particle-cloud σ_pos [km]: held below `custody_km`, lost at/above `lost_km`
+   *  (backend: metrics.filter.custody_km / lost_km; mock: its CUSTODY constants). Filled by demo/normalize.ts. */
+  custody_km?: number;
+  lost_km?: number;
 }
 
 export interface DemoScenario {
@@ -646,4 +667,6 @@ export interface DemoScenario {
   events: SeleneEvent[];
   /** Plain-English analyst brief (markdown-ish paragraphs). */
   brief: string;
+  /** Backend run metrics (opaque to the UI except `filter.custody_km` / `filter.lost_km`). */
+  metrics?: Record<string, unknown>;
 }

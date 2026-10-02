@@ -1,18 +1,20 @@
 /**
  * Tracked objects + trails (rotating frame, nondimensional).
  * Each object is a constant-pixel-size marker (core dot + soft halo, selection ring) coloured by custody status,
- * with an HTML label carrying a SIMULATED tag (--sim) or a REAL · JPL HORIZONS tag (--accent). Markers are scaled
- * per render tick to a fixed screen size (scene/screenScale.ts) so they never out-size the Moon in close-ups.
+ * with an HTML label. Simulated objects are typeset in the desaturated sand of --sim and carry a dashed SIMULATED
+ * chip when hovered or selected (the dock always shows the chip; the banner states the convention). Real objects
+ * carry their REAL · JPL HORIZONS chip. Markers are scaled per render tick to a fixed screen size
+ * (scene/screenScale.ts) so they never out-size the Moon in close-ups.
  * Positions: live objects sample their backend track (Hermite) every render tick; scenario objects interpolate
  * between the bracketing frames. Trails are a fading line over the last hours of the track (or frames).
+ * A teal flash ring expands from the object for a couple of sim-hours after a custody_regained event.
  * Labels register with the scene-wide declutter (scene/labels.ts, LabelDeclutter in SceneRoot): the selected object
  * always wins, simulated objects outrank real ones, nearer ones win ties; a label whose box would overlap an
- * already-placed one is hidden (so the five lunar orbiters do not pile up on the Moon at the overview zoom; zoom in
- * or select to reveal). Click (generous hit sphere) selects.
+ * already-placed one is hidden. Click (generous hit sphere) selects.
  */
 import { Html, Line } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { SceneObject } from '../demo/useScenarioFrame';
 import { trackEval } from '../lib/tracks';
@@ -48,6 +50,9 @@ const PX = { core: 3.5, coreSel: 4.5, halo: 8, haloSel: 10, ringIn: 12, ringOut:
  * under a cyan blob. Both thresholds are in screen pixels; the selected object keeps its full marker.
  */
 const NEAR_MOON = { moonPxMax: 12, distPx: 16, coreSmall: 2.2 };
+/** Regained flash: visible for this many sim seconds after a custody_regained event, cycling every FLASH_PERIOD_S wall. */
+const FLASH_SIM_S = 2 * 3600;
+const FLASH_PERIOD_S = 1.3;
 
 interface Props {
   objects: SceneObject[];
@@ -61,10 +66,14 @@ function ObjectMarker({ o, selected, onSelect, showLabel }: { o: SceneObject; se
   const color = CUSTODY_COLOR[o.custody];
   const coreRef = useRef<THREE.Mesh>(null);
   const haloRef = useRef<THREE.Mesh>(null);
+  const flashRef = useRef<THREE.Mesh>(null);
+  const flashMat = useRef<THREE.MeshBasicMaterial>(null);
+  const [hovered, setHovered] = useState(false);
   const tmp = useMemo(() => [0, 0, 0] as [number, number, number], []);
   useFrame(({ camera, size }) => {
     if (!ref.current) return;
-    const t = useSelene.getState().tSec;
+    const st = useSelene.getState();
+    const t = st.tSec;
     if (o.track) {
       trackEval(o.track, t, tmp);
       ref.current.position.set(tmp[0], tmp[1], tmp[2]);
@@ -87,6 +96,28 @@ function ObjectMarker({ o, selected, onSelect, showLabel }: { o: SceneObject; se
       const s = crowd ? NEAR_MOON.coreSmall / (selected ? PX.coreSel : PX.core) : 1;
       coreRef.current.scale.setScalar(s);
     }
+    // Custody-regained flash ring (scenario only): expanding teal ring for FLASH_SIM_S after the event.
+    if (flashRef.current && flashMat.current) {
+      let show = false;
+      if (st.scenario) {
+        for (let i = st.events.length - 1; i >= 0; i--) {
+          const e = st.events[i];
+          if (e.t > t) continue;
+          if (t - e.t > FLASH_SIM_S) break;
+          if (e.kind === 'custody_regained' && e.object_id === o.id) {
+            show = true;
+            break;
+          }
+        }
+      }
+      flashRef.current.visible = show;
+      if (show) {
+        const ph = ((performance.now() / 1000) % FLASH_PERIOD_S) / FLASH_PERIOD_S;
+        flashRef.current.scale.setScalar(1 + 2.4 * ph);
+        flashMat.current.opacity = 0.9 * (1 - ph);
+        flashRef.current.quaternion.copy(camera.quaternion);
+      }
+    }
   });
   // Unit-radius geometry scaled to 1 px; children sizes below are then in pixels.
   useScreenScale(markerRef, 1);
@@ -103,6 +134,7 @@ function ObjectMarker({ o, selected, onSelect, showLabel }: { o: SceneObject; se
     },
     [o.id, o.simulated, selected],
   );
+  const showChip = !o.simulated || selected || hovered;
   return (
     <group ref={ref} position={o.pos}>
       <group ref={markerRef}>
@@ -110,6 +142,15 @@ function ObjectMarker({ o, selected, onSelect, showLabel }: { o: SceneObject; se
           onClick={(e) => {
             e.stopPropagation();
             onSelect();
+          }}
+          onPointerOver={(e) => {
+            e.stopPropagation();
+            setHovered(true);
+            document.body.style.cursor = 'pointer';
+          }}
+          onPointerOut={() => {
+            setHovered(false);
+            document.body.style.cursor = '';
           }}
         >
           <sphereGeometry args={[PX.hit, 8, 6]} />
@@ -129,12 +170,16 @@ function ObjectMarker({ o, selected, onSelect, showLabel }: { o: SceneObject; se
             <meshBasicMaterial color={color} side={THREE.DoubleSide} transparent opacity={0.85} depthWrite={false} depthTest={false} />
           </mesh>
         )}
+        <mesh renderOrder={3} ref={flashRef} visible={false}>
+          <ringGeometry args={[13, 15, 48]} />
+          <meshBasicMaterial ref={flashMat} color={COLORS.ok} side={THREE.DoubleSide} transparent opacity={0.8} depthWrite={false} depthTest={false} />
+        </mesh>
       </group>
       {showLabel && (
         <Html zIndexRange={[20, 0]} style={{ pointerEvents: 'none' }}>
-          <div ref={setLabel} className={`obj-label${selected ? ' selected' : ''}${o.simulated ? '' : ' real'}`} style={{ borderColor: color }} data-id={o.id}>
+          <div ref={setLabel} className={`obj-label${selected ? ' selected' : ''}${o.simulated ? ' sim-quiet' : ' real'}`} style={{ borderColor: color }} data-id={o.id} title={o.simulated ? 'SIMULATED — notional actor' : 'REAL · JPL HORIZONS ephemeris'}>
             <span className="id">{o.id}</span>
-            <span className={`tag ${o.simulated ? 'sim' : 'accent'}`}>{o.simulated ? 'SIMULATED' : 'REAL · JPL HORIZONS'}</span>
+            {showChip && <span className={`tag ${o.simulated ? 'sim' : 'accent'}`}>{o.simulated ? 'SIMULATED' : 'REAL · JPL HORIZONS'}</span>}
             {(o.custody === 'lost' || o.custody === 'degraded') && <span className={`tag ${o.custody === 'lost' ? 'alert' : 'warn'}`}>{o.custody.toUpperCase()}</span>}
           </div>
         </Html>

@@ -1,12 +1,17 @@
 /**
  * Architecture Trade Studio.
  * Left: candidate orbits (add sensors, edit specs) and up to 4 saved architectures.
- * Centre: 2D rotating-frame plot of the selected architecture against the notional target population,
- *         Run Monte Carlo (POST /api/architecture/evaluate, browser mock fallback with MOCK badge).
- * Right: side-by-side table, grouped bar charts, summary, Export JSON, metric explainer.
+ * Centre: "Map | Results" segmented view — the 2D rotating-frame plot of the selected architecture against the
+ *         notional target population, or a 2×2 grid of metric charts once a run exists (the view switches to
+ *         Results when a run completes).
+ * Right: full-width Run Monte Carlo button + run parameters, side-by-side table (best row highlighted), summary,
+ *        Export JSON, metric explainer (collapsed).
+ * Data: POST /api/architecture/evaluate (backend Monte Carlo; studio/api.ts adapts the contract). When the backend
+ * is unreachable the browser schematic model answers and the results carry a muted SCHEMATIC MODEL tag.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Icon } from '../panels/icons';
 import { TopBar } from '../panels/TopBar';
 import { studioApi } from '../studio/api';
 import { ARCH_COLORS } from '../studio/ramp';
@@ -99,9 +104,9 @@ function bestIndex(scores: ArchitectureScore[], key: keyof ArchitectureScore, hi
   return bi;
 }
 
-const tickStyle = { fill: '#8d9db3', fontSize: 11 };
+const tickStyle = { fill: '#8d9db3', fontSize: 12 };
 
-function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMax }: { title: string; unit: string; scores: ArchitectureScore[]; colors: string[]; dataKey: keyof ArchitectureScore; secondKey?: keyof ArchitectureScore; domainMax?: number }) {
+function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMax, tall }: { title: string; unit: string; scores: ArchitectureScore[]; colors: string[]; dataKey: keyof ArchitectureScore; secondKey?: keyof ArchitectureScore; domainMax?: number; tall?: boolean }) {
   const fmtLabel = (v: number) => v.toFixed(v >= 100 ? 0 : 1);
   const span = domainMax ?? Math.max(1, ...scores.map((s) => s[dataKey] as number));
   const data = scores.map((s, i) => {
@@ -113,9 +118,9 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
     return { name: s.name, short: shortName(s.name), v, v2, v2label, color: colors[i] };
   });
   return (
-    <div>
+    <div className="metric-chart">
       <div className="legend-row" style={{ justifyContent: 'space-between' }}>
-        <span style={{ color: 'var(--text)' }}>
+        <span style={{ color: 'var(--text)', fontWeight: 600 }}>
           {title} ({unit})
         </span>
         {secondKey && (
@@ -125,9 +130,9 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
           </span>
         )}
       </div>
-      <div className="chart-box">
+      <div className={`chart-box${tall ? ' grid-cell' : ''}`}>
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={data} margin={{ top: 16, right: 8, bottom: 0, left: -22 }} barCategoryGap="22%" barGap={2}>
+          <BarChart data={data} margin={{ top: 18, right: 8, bottom: 0, left: -18 }} barCategoryGap="22%" barGap={2}>
             <CartesianGrid stroke="#1c2733" vertical={false} />
             <XAxis dataKey="short" tick={tickStyle} stroke="#1c2733" interval={0} />
             <YAxis domain={[0, domainMax ?? 'auto']} tick={tickStyle} stroke="#1c2733" />
@@ -154,14 +159,14 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
               {data.map((d, i) => (
                 <Cell key={i} fill={d.color} />
               ))}
-              <LabelList dataKey="v" position="top" formatter={fmtLabel} style={{ fill: '#d6e2f0', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }} />
+              <LabelList dataKey="v" position="top" formatter={fmtLabel} style={{ fill: '#d6e2f0', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }} />
             </Bar>
             {secondKey && (
               <Bar dataKey="v2" isAnimationActive={false} radius={[3, 3, 0, 0]} fillOpacity={0} strokeWidth={2}>
                 {data.map((d, i) => (
                   <Cell key={i} stroke={d.color} />
                 ))}
-                <LabelList dataKey="v2label" position="top" style={{ fill: '#8d9db3', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }} />
+                <LabelList dataKey="v2label" position="top" style={{ fill: '#8d9db3', fontSize: 12, fontFamily: 'IBM Plex Mono, monospace' }} />
               </Bar>
             )}
           </BarChart>
@@ -171,16 +176,29 @@ function MetricChart({ title, unit, scores, colors, dataKey, secondKey, domainMa
   );
 }
 
+function SourceTag({ mock }: { mock: boolean }) {
+  return mock ? (
+    <span className="tag schematic" title="Browser-side schematic model: the backend Monte Carlo (DE440s dynamics, UKF custody, backend tasker) was not reachable. Figures are for layout and relative comparison only.">
+      SCHEMATIC MODEL
+    </span>
+  ) : (
+    <span className="tag live-src" title="Backend Monte Carlo: /api/architecture/evaluate (DE440s dynamics, UKF custody, backend tasker).">
+      LIVE · BACKEND MONTE CARLO
+    </span>
+  );
+}
+
 export function ArchitecturePage() {
   const [archs, setArchs] = useState<ArchitectureDef[]>(() => defaultArchitectures());
   const [selId, setSelId] = useState<string>(() => archs[archs.length - 1]?.id ?? '');
-  const [nMc, setNMc] = useState(100);
-  const [horizonDays, setHorizonDays] = useState(7);
+  const [nMc, setNMc] = useState(8);
+  const [horizonDays, setHorizonDays] = useState(3);
   const [targetRadius, setTargetRadius] = useState(1.5);
   const [albedo, setAlbedo] = useState(0.2);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [run, setRun] = useState<RunState | null>(null);
+  const [view, setView] = useState<'map' | 'results'>('map');
 
   const sel = archs.find((a) => a.id === selId) ?? archs[0] ?? null;
   const colorOf = (id: string) => ARCH_COLORS[(archs.find((a) => a.id === id)?.slot ?? 0) % ARCH_COLORS.length];
@@ -205,6 +223,7 @@ export function ArchitecturePage() {
     const a: ArchitectureDef = { id: nextId('A'), name: `${freeLetter(archs)} · New architecture`, ground_network: true, sensors: [], slot: freeSlot(archs) };
     setArchs([...archs, a]);
     setSelId(a.id);
+    setView('map');
   }
   function dupArch(id: string) {
     if (archs.length >= MAX_ARCH) return;
@@ -240,6 +259,7 @@ export function ArchitecturePage() {
       await new Promise((r) => setTimeout(r, 20));
       const { data, mock, elapsed_ms } = await studioApi.architectureEvaluate(req);
       setRun({ req, res: data, colors: archs.map((a) => colorOf(a.id)), mock: mock || !!data.mock, elapsed_ms, at: new Date().toISOString() });
+      setView('results');
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -249,7 +269,7 @@ export function ArchitecturePage() {
 
   function exportJson() {
     if (!run) return;
-    const blob = new Blob([JSON.stringify({ generated_at: run.at, source: run.mock ? 'MOCK browser-side Monte Carlo' : 'SELENE backend /api/architecture/evaluate', request: run.req, response: run.res }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ generated_at: run.at, source: run.mock ? 'browser schematic model (relative comparison only)' : 'SELENE backend Monte Carlo (/api/architecture/evaluate)', method: run.res.method, request: run.req, response: run.res }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -275,17 +295,25 @@ export function ArchitecturePage() {
     const bc = bestIndex(s, 'coverage_pct', true);
     const bu = bestIndex(s, 'custody_pct', true);
     const bl = bestIndex(s, 'detect_latency_h_mean', false);
+    const br = bestIndex(s, 'revisit_h', false);
     const worstCust = bestIndex(s, 'custody_pct', false);
-    return { bc, bu, bl, worstCust, s };
+    // Overall best = most "best" cells (ties → custody).
+    const wins = s.map((_, i) => [bc, bu, bl, br].filter((x) => x === i).length);
+    let overall = 0;
+    wins.forEach((w, i) => {
+      if (w > wins[overall] || (w === wins[overall] && s[i].custody_pct > s[overall].custody_pct)) overall = i;
+    });
+    return { bc, bu, bl, br, worstCust, overall, s };
   }, [run]);
 
   const scores = run?.res.scores ?? [];
   const latencyMax = niceCeil(Math.max(1, ...scores.map((x) => Math.max(x.detect_latency_h_mean, x.detect_latency_h_p95))) * 1.15);
+  const liveNMc = scores[0]?.n_mc;
 
   return (
     <div className="studio">
       <TopBar controls={false} />
-      <div className="studio-body">
+      <div className="studio-body arch">
         {/* ---------------- left ---------------- */}
         <aside className="studio-col left">
           <h2>Architecture Trade Studio</h2>
@@ -304,11 +332,11 @@ export function ArchitecturePage() {
                   </div>
                 </span>
                 <span className="acts">
-                  <button className="sm" title="Duplicate" disabled={archs.length >= MAX_ARCH} onClick={(e) => (e.stopPropagation(), dupArch(a.id))}>
-                    ⧉
+                  <button className="sm" title="Duplicate" aria-label="Duplicate architecture" disabled={archs.length >= MAX_ARCH} onClick={(e) => (e.stopPropagation(), dupArch(a.id))}>
+                    <Icon name="copy" size={13} style={{ marginRight: 0, verticalAlign: '-2px' }} />
                   </button>
-                  <button className="sm danger" title="Delete" onClick={(e) => (e.stopPropagation(), delArch(a.id))}>
-                    ✕
+                  <button className="sm danger" title="Delete" aria-label="Delete architecture" onClick={(e) => (e.stopPropagation(), delArch(a.id))}>
+                    <Icon name="close" size={13} style={{ marginRight: 0, verticalAlign: '-2px' }} />
                   </button>
                 </span>
               </li>
@@ -322,7 +350,7 @@ export function ArchitecturePage() {
           {sel && (
             <label className="check">
               <input type="checkbox" checked={sel.ground_network} onChange={(e) => updateArch(sel.id, (x) => ({ ...x, ground_network: e.target.checked }))} />
-              Include ground network (3 notional 1-m sites) in <b>{sel.name}</b>
+              Include the notional ground optical network in <b>{sel.name}</b>
             </label>
           )}
 
@@ -367,64 +395,112 @@ export function ArchitecturePage() {
             );
           })}
           <p className="hint">
-            Only limiting magnitude affects the scores today (mock and the planned backend evaluator both detect on m ≤ m_lim). Aperture, FOV and slew are recorded in the architecture definition and the exported JSON for the tasking scheduler; they do not change
-            these results.
+            {run && !run.mock
+              ? 'Backend evaluator: aperture sets the limiting magnitude (m_lim = 18.5 + 5 log₁₀(D / 0.5 m)) when none is given; FOV, slew and phase drive the tasking model.'
+              : 'Schematic model: only limiting magnitude affects the scores; aperture, FOV and slew are recorded in the definition and the exported JSON.'}
           </p>
         </aside>
 
         {/* ---------------- centre ---------------- */}
         <section className="studio-col center">
           <div className="plot-head">
-            <span>
-              SELECTED <b>{sel?.name ?? '—'}</b>
+            <span className="seg seg-view" role="tablist" aria-label="Centre view">
+              <button role="tab" aria-selected={view === 'map'} className={view === 'map' ? 'active' : ''} onClick={() => setView('map')}>
+                Map
+              </button>
+              <button role="tab" aria-selected={view === 'results'} className={view === 'results' ? 'active' : ''} onClick={() => setView('results')} disabled={!run} title={run ? 'Metric charts for the last run' : 'Run Monte Carlo first'}>
+                Results
+              </button>
             </span>
-            <span>
-              SENSORS <b>{sel ? sel.sensors.length + (sel.ground_network ? 3 : 0) : 0}</b>
-            </span>
-            <span className="spacer" />
-            <span className="legend-row">
-              <span>
-                <span className="sw" style={{ background: 'var(--accent)' }} />
-                sensor orbits
-              </span>
-              <span>
-                <span className="sw" style={{ background: 'var(--sim)' }} />
-                SIMULATED targets (notional actor)
-              </span>
-            </span>
+            {view === 'map' ? (
+              <>
+                <span>
+                  SELECTED <b>{sel?.name ?? '—'}</b>
+                </span>
+                <span>
+                  SENSORS <b>{sel ? sel.sensors.length + (sel.ground_network ? (run && !run.mock ? 9 : 3) : 0) : 0}</b>
+                </span>
+                <span className="spacer" />
+                <span className="legend-row">
+                  <span>
+                    <span className="sw" style={{ background: 'var(--accent)' }} />
+                    sensor orbits
+                  </span>
+                  <span>
+                    <span className="sw" style={{ background: 'var(--sim)' }} />
+                    SIMULATED targets (notional actor)
+                  </span>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="spacer" />
+                {run && (
+                  <span className="legend-row">
+                    {scores.map((s, i) => (
+                      <span key={i}>
+                        <span className="sw" style={{ background: run.colors[i] }} />
+                        {s.name}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </>
+            )}
           </div>
-          <SystemPlot arch={sel} />
-          <div className="plot-head">
-            <span className="ctl" style={{ gridTemplateColumns: 'auto 70px auto 60px auto 60px auto 60px', padding: 0 }}>
-              <label htmlFor="mc-n">n_mc</label>
-              <input id="mc-n" type="number" min={10} max={2000} step={10} value={nMc} onChange={(e) => setNMc(Math.max(4, Number(e.target.value) || 4))} />
-              <label htmlFor="mc-h">days</label>
-              <input id="mc-h" type="number" min={1} max={60} step={1} value={horizonDays} onChange={(e) => setHorizonDays(Math.max(1, Number(e.target.value) || 1))} />
-              <label htmlFor="mc-r">ρ m</label>
-              <input id="mc-r" type="number" min={0.1} max={10} step={0.1} value={targetRadius} onChange={(e) => setTargetRadius(Math.max(0.05, Number(e.target.value) || 0.05))} />
-              <label htmlFor="mc-a">albedo</label>
-              <input id="mc-a" type="number" min={0.02} max={1} step={0.02} value={albedo} onChange={(e) => setAlbedo(Math.min(1, Math.max(0.01, Number(e.target.value) || 0.01)))} />
-            </span>
-            <span className="spacer" />
-            <button className="primary" onClick={runMc} disabled={busy || archs.length === 0}>
-              {busy ? 'Running…' : `▶ Run Monte Carlo (${archs.length} arch.)`}
-            </button>
-          </div>
-          {err && <div className="status-line err">ERROR: {err}</div>}
-          {busy && <div className="center-busy">RUNNING MONTE CARLO…</div>}
+          {view === 'map' || !run ? (
+            <SystemPlot arch={sel} />
+          ) : (
+            <div className="chart-grid">
+              {METRICS.slice(0, 3).map((m) => (
+                <MetricChart key={m.key} title={m.label} unit={m.unit} scores={scores} colors={run.colors} dataKey={m.key} domainMax={m.unit === '%' ? 100 : undefined} tall />
+              ))}
+              <MetricChart title="Maneuver-detection latency" unit="h" scores={scores} colors={run.colors} dataKey="detect_latency_h_mean" secondKey="detect_latency_h_p95" domainMax={latencyMax} tall />
+            </div>
+          )}
+          {busy && <div className="progress-thin" role="progressbar" aria-label="Running Monte Carlo" />}
+          {busy && <div className="center-busy quiet">running Monte Carlo…</div>}
         </section>
 
         {/* ---------------- right ---------------- */}
         <aside className="studio-col right">
+          <button className="primary wide run-btn" onClick={runMc} disabled={busy || archs.length === 0}>
+            {busy ? (
+              'Running…'
+            ) : (
+              <>
+                <Icon name="play" size={15} />
+                Run Monte Carlo · {archs.length} architecture{archs.length === 1 ? '' : 's'}
+              </>
+            )}
+          </button>
+          <div className="ctl params" style={{ gridTemplateColumns: 'auto 1fr auto 1fr' }}>
+            <label htmlFor="mc-n" title="Monte Carlo draws per architecture (backend cap 16)">
+              n_mc
+            </label>
+            <input id="mc-n" type="number" min={1} max={200} step={1} value={nMc} onChange={(e) => setNMc(Math.max(1, Number(e.target.value) || 1))} />
+            <label htmlFor="mc-h" title="Evaluation horizon, days (backend cap 7)">
+              days
+            </label>
+            <input id="mc-h" type="number" min={1} max={60} step={1} value={horizonDays} onChange={(e) => setHorizonDays(Math.max(1, Number(e.target.value) || 1))} />
+            <label htmlFor="mc-r" title="Reference target radius, m">
+              ρ m
+            </label>
+            <input id="mc-r" type="number" min={0.1} max={10} step={0.1} value={targetRadius} onChange={(e) => setTargetRadius(Math.max(0.05, Number(e.target.value) || 0.05))} />
+            <label htmlFor="mc-a">albedo</label>
+            <input id="mc-a" type="number" min={0.02} max={1} step={0.02} value={albedo} onChange={(e) => setAlbedo(Math.min(1, Math.max(0.01, Number(e.target.value) || 0.01)))} />
+          </div>
+          {err && <div className="status-line err">ERROR: {err}</div>}
+
           <h3>
-            Results {run && (run.mock ? <span className="badge-mock">MOCK</span> : <span className="badge-live">LIVE</span>)}
+            Results {run && <SourceTag mock={run.mock} />}
           </h3>
-          {!run && <p className="hint">Run Monte Carlo to compare the saved architectures side by side.</p>}
+          {!run && <p className="hint">Run Monte Carlo to compare the saved architectures side by side. The backend draws notional objects from the SIMULATED population, injects unannounced burns and scores coverage, custody, revisit and detection latency.</p>}
           {run && (
             <>
               <div className="status-line" style={{ marginTop: 0 }}>
-                n_mc {run.res.scores[0]?.n_mc ?? run.req.n_mc} · horizon {run.req.horizon_days} d · target ρ {run.req.target_radius_m} m, a {run.req.target_albedo} · {run.elapsed_ms.toFixed(0)} ms
-                {run.mock && <div>{run.res.method}</div>}
+                n_mc {liveNMc ?? run.req.n_mc}
+                {liveNMc !== undefined && liveNMc !== run.req.n_mc ? ` (requested ${run.req.n_mc}, backend cap)` : ''} · horizon {run.req.horizon_days}&nbsp;d · target ρ&nbsp;{run.req.target_radius_m}&nbsp;m, a&nbsp;{run.req.target_albedo} · <span className="nowrap">{(run.elapsed_ms / 1000).toFixed(1)}&nbsp;s</span>
               </div>
               <div className="table-scroll">
                 <table className="results-table">
@@ -440,8 +516,8 @@ export function ArchitecturePage() {
                   </thead>
                   <tbody>
                     {scores.map((s, i) => (
-                      <tr key={i}>
-                        <td title={`${s.name}${s.n_sensors !== undefined ? ` — ${s.n_sensors} sensors` : ''}`}>
+                      <tr key={i} className={summary && summary.overall === i ? 'best-row' : ''} title={summary && summary.overall === i ? 'Best overall (most best-in-class metrics)' : undefined}>
+                        <td title={`${s.name}${s.n_sensors !== undefined ? ` — ${s.n_sensors} space sensors` : ''}`}>
                           <span className="sw" style={{ background: run.colors[i] }} />
                           {shortName(s.name)}
                         </td>
@@ -455,13 +531,6 @@ export function ArchitecturePage() {
                   </tbody>
                 </table>
               </div>
-              {scores.some((s) => (s.undetected_pct ?? 0) > 0 || (s.never_observed_pct ?? 0) > 0) && (
-                <p className="hint">
-                  Censored samples (latency = remaining horizon):{' '}
-                  {scores.map((s) => `${shortName(s.name)} ${(s.undetected_pct ?? 0).toFixed(0)}% undetected / ${(s.never_observed_pct ?? 0).toFixed(0)}% never observed`).join(' · ')}
-                </p>
-              )}
-
               <div className="legend-row" style={{ margin: '8px 0 4px' }}>
                 {scores.map((s, i) => (
                   <span key={i}>
@@ -470,44 +539,52 @@ export function ArchitecturePage() {
                   </span>
                 ))}
               </div>
-              {METRICS.slice(0, 3).map((m) => (
-                <MetricChart key={m.key} title={m.label} unit={m.unit} scores={scores} colors={run.colors} dataKey={m.key} domainMax={m.unit === '%' ? 100 : undefined} />
-              ))}
-              <MetricChart title="Maneuver-detection latency" unit="h" scores={scores} colors={run.colors} dataKey="detect_latency_h_mean" secondKey="detect_latency_h_p95" domainMax={latencyMax} />
+              {scores.some((s) => (s.undetected_pct ?? 0) > 0 || (s.never_observed_pct ?? 0) > 0) && (
+                <p className="hint">
+                  Censored (latency = remaining horizon):{' '}
+                  {scores.map((s) => `${shortName(s.name)} ${(s.undetected_pct ?? 0).toFixed(0)}% burns undetected${s.never_observed_pct !== undefined ? ` / ${s.never_observed_pct.toFixed(0)}% objects never revisited` : ''}`).join(' · ')}
+                </p>
+              )}
 
               {summary && (
                 <>
                   <h3>Summary</h3>
                   <p className="summary">
-                    Best coverage: <b>{summary.s[summary.bc].name}</b> ({summary.s[summary.bc].coverage_pct.toFixed(1)}% of the xy slice). Best custody: <b>{summary.s[summary.bu].name}</b> ({summary.s[summary.bu].custody_pct.toFixed(1)}%
-                    of object-hours, vs {summary.s[summary.worstCust].custody_pct.toFixed(1)}% for {summary.s[summary.worstCust].name}). Fastest maneuver detection: <b>{summary.s[summary.bl].name}</b>, mean{' '}
-                    {summary.s[summary.bl].detect_latency_h_mean.toFixed(1)} h / p95 {summary.s[summary.bl].detect_latency_h_p95.toFixed(1)} h.
-                    {run.mock ? ' Figures are from the browser-side schematic model and are for layout and relative comparison only.' : ''}
+                    Best overall: <b>{summary.s[summary.overall].name}</b>. Best coverage: <b>{summary.s[summary.bc].name}</b> ({summary.s[summary.bc].coverage_pct.toFixed(1)}%). Best custody: <b>{summary.s[summary.bu].name}</b> ({summary.s[summary.bu].custody_pct.toFixed(1)}% of
+                    object-hours, vs {summary.s[summary.worstCust].custody_pct.toFixed(1)}% for {summary.s[summary.worstCust].name}). Fastest maneuver detection: <b>{summary.s[summary.bl].name}</b>, mean {summary.s[summary.bl].detect_latency_h_mean.toFixed(1)} h / p95{' '}
+                    {summary.s[summary.bl].detect_latency_h_p95.toFixed(1)} h.
+                    {run.mock ? ' Schematic-model figures: relative comparison only.' : ''}
                   </p>
                 </>
               )}
               <div className="btn-row">
-                <button onClick={exportJson}>⤓ Export JSON</button>
+                <button onClick={exportJson}>
+                  <Icon name="download" />
+                  Export JSON
+                </button>
               </div>
             </>
           )}
 
-          <h3>How the metrics are computed</h3>
-          <dl className="explainer">
-            <dt>Monte Carlo</dt>
-            <dd>
-              n_mc trials; each draws a SIMULATED object (notional actor) from the target population — DRO, 9:2 NRHO, L1 halo, L2 southern halo — at a random phase, plus a random unannounced maneuver epoch. Visibility is evaluated hourly over the horizon
-              with photometric detectability (size, albedo, phase angle, range vs. limiting magnitude), Sun/Moon/Earth exclusion, shadow, and ground-site night/elevation constraints.
-            </dd>
-            <dt>Coverage %</dt>
-            <dd>Fraction of (cell, epoch) samples of the rotating-frame xy slice where ≥ 1 sensor could detect the reference object.</dd>
-            <dt>Custody %</dt>
-            <dd>Fraction of object-hours in which time since last observation is within a 12 h custody window (mock surrogate; a filter-based evaluator would use the position-covariance trace instead — no such backend route exists yet).</dd>
-            <dt>Mean revisit (h)</dt>
-            <dd>Mean gap between consecutive observation opportunities per object; never-observed objects contribute the full horizon.</dd>
-            <dt>Detection latency (h)</dt>
-            <dd>Time from the maneuver epoch to the second post-maneuver observation (two fixes are needed to attribute a residual to a burn); undetected trials are censored at the horizon. Mean and 95th percentile.</dd>
-          </dl>
+          <details className="explainer-box">
+            <summary>How the metrics are computed</summary>
+            <dl className="explainer">
+              <dt>Monte Carlo</dt>
+              <dd>
+                {run && !run.mock
+                  ? 'Each draw samples a start epoch inside the cached DE440s span and injects unannounced burns (1–20 m/s, Poisson rate per object) into the SIMULATED population; each architecture is scored with the real visibility model (photometry, Sun/Moon/Earth exclusion, shadow, site night/elevation), a UKF custody filter and the information-gain tasker.'
+                  : 'n_mc trials; each draws a SIMULATED object (notional actor) from the target population — DRO, 9:2 NRHO, L1 halo, L2 southern halo — at a random phase, plus a random unannounced maneuver epoch. Visibility is evaluated hourly over the horizon with photometric detectability, Sun/Moon/Earth exclusion, shadow, and ground-site night/elevation constraints.'}
+              </dd>
+              <dt>Coverage %</dt>
+              <dd>Fraction of (cell, epoch) samples of the rotating-frame xy slice where ≥ 1 sensor could detect the reference object.</dd>
+              <dt>Custody %</dt>
+              <dd>{run && !run.mock ? 'Fraction of object-hours in which the filter position uncertainty (√tr P) stays under the custody threshold (100 km).' : 'Fraction of object-hours in which time since last observation is within a 12 h custody window (schematic surrogate for the filter-based definition).'}</dd>
+              <dt>Mean revisit (h)</dt>
+              <dd>Mean gap between consecutive observation opportunities per object; never-observed objects contribute the full horizon.</dd>
+              <dt>Detection latency (h)</dt>
+              <dd>Time from the maneuver epoch to the detection (NIS gate or miss on re-acquisition); undetected burns are censored at the horizon. Mean and 95th percentile.</dd>
+            </dl>
+          </details>
         </aside>
       </div>
     </div>

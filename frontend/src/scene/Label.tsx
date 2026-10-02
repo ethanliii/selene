@@ -18,6 +18,10 @@ interface Props {
   /** Declutter id (omit to always show). */
   id?: string;
   priority?: number;
+  /** Extra class on the label div ('plain' = no chip border, e.g. sensor markers, line-of-sight hints). */
+  className?: string;
+  /** Screen offset of the label's top-left corner from the anchor, px (overrides the variant default). */
+  offset?: { dx: number; dy: number };
 }
 
 const OFFSET: Record<NonNullable<Props['variant']>, { dx: number; dy: number }> = {
@@ -26,7 +30,7 @@ const OFFSET: Record<NonNullable<Props['variant']>, { dx: number; dy: number }> 
   lpoint: { dx: 8, dy: -8 },
 };
 
-export function Label({ position, text, accent, color, variant = 'tag', id, priority = 50 }: Props) {
+export function Label({ position, text, accent, color, variant = 'tag', id, priority = 50, className, offset }: Props) {
   const anchor = useRef<THREE.Group>(null);
   const node = useRef<HTMLDivElement | null>(null);
   // drei's <Html> renders its children into a separate React root after the parent commits, so a plain useEffect
@@ -36,19 +40,19 @@ export function Label({ position, text, accent, color, variant = 'tag', id, prio
       if (!id) return;
       if (el && anchor.current) {
         node.current = el;
-        const off = OFFSET[variant];
-        registerLabel({ id, priority, el, anchor: anchor.current, dx: variant === 'body' ? -el.offsetWidth / 2 : off.dx, dy: off.dy });
+        const off = offset ?? OFFSET[variant];
+        registerLabel({ id, priority, el, anchor: anchor.current, dx: variant === 'body' && !offset ? -el.offsetWidth / 2 : off.dx, dy: off.dy });
       } else if (!el && node.current) {
         unregisterLabel(id, node.current);
         node.current = null;
       }
     },
-    [id, priority, variant],
+    [id, priority, variant, offset?.dx, offset?.dy],
   );
   return (
     <group ref={anchor} position={position}>
       <Html zIndexRange={[10, 0]} style={{ pointerEvents: 'none' }}>
-        <div ref={setEl} className={`scene-label ${variant}${accent ? ' accent' : ''}`} style={color ? { color } : undefined}>
+        <div ref={setEl} className={`scene-label ${variant}${accent ? ' accent' : ''}${className ? ` ${className}` : ''}`} style={offset ? { color, ['--dx' as string]: `${offset.dx}px`, ['--dy' as string]: `${offset.dy}px` } : color ? { color } : undefined}>
           {text}
         </div>
       </Html>

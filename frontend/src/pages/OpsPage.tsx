@@ -4,17 +4,21 @@
  * /api/orbits/families, /api/sensors (+ /api/orbits/records/{id} for each space observer's host orbit).
  * The DE440s ephemeris basis is (re)fetched whenever the timeline span changes. Object motion comes from
  * /api/catalog/objects/{id}/trajectory (demo/useLiveTracks.ts). Anything served from the browser mock is named
- * in the banner's LIVE/MOCK strip.
+ * in the top bar's DATA SOURCES popover; the HUD says so only when the backend is offline.
+ *
+ * Viewport overlays: two-line HUD with an ⓘ expander, colour keys (custody / exclusion / clouds), loading bar,
+ * presenter caption (current story headline), toasts (bottom-right), camera presets, scale bar, axis gizmo.
  */
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { api, useBackendStatus } from '../api/client';
-import type { OrbitRecord, Vec3 } from '../api/types';
+import type { OrbitRecord, SeleneEvent, Vec3 } from '../api/types';
+import { deriveHeadline, kindLabel } from '../demo/headline';
 import { startDemo, useDemoDriver } from '../demo/useDemoDriver';
 import { useScenarioFrame } from '../demo/useScenarioFrame';
 import { usePlayback } from '../hooks/usePlayback';
 import { ephemerisCovers, hasBasis, hasBasisAt } from '../lib/ephem';
 import { CameraPresets } from '../panels/CameraPresets';
-import { useLiveMockLists } from '../panels/LiveStatus';
+import { severityColor } from '../panels/severity';
 import { requestCameraPreset, type PresetName } from '../scene/cameraBus';
 import { CAMERA_PRESETS, L_STAR_KM } from '../scene/constants';
 import { getWorldPerPixel, subscribeScale } from '../scene/frameBus';
@@ -22,14 +26,14 @@ import { Dock } from '../panels/Dock';
 import { Timeline } from '../panels/Timeline';
 import { Toasts } from '../panels/Toasts';
 import { TopBar } from '../panels/TopBar';
-import { ExclusionCones, SensorFOVCones } from '../scene/Cones';
+import { ExclusionCones, SensorFOVCones, SensorMarkers } from '../scene/Cones';
 import { GroundSites } from '../scene/GroundSites';
 import { Objects } from '../scene/Objects';
 import { OrbitFamilies } from '../scene/OrbitFamilies';
 import { ParticleCloud } from '../scene/ParticleCloud';
 import { Reachable } from '../scene/Reachable';
 import { SceneRoot } from '../scene/SceneRoot';
-import { useSelene, type Layers } from '../store/useSelene';
+import { fmtElapsed, useSelene, type Layers } from '../store/useSelene';
 
 let deepLinkApplied = false;
 
@@ -39,6 +43,8 @@ function Hud({ source, nParticles, tracksLoaded, tracksTotal }: { source: string
   const meta = useSelene((s) => s.catalogMeta);
   const scenario = useSelene((s) => s.scenario);
   const eph = useSelene((s) => s.ephemeris);
+  const tMin = useSelene((s) => Math.floor(s.tSec / 60) * 60);
+  const [more, setMore] = useState(false);
   // Coverage of the CURRENT cursor by the loaded tables (re-evaluated on the throttled cursor): outside the loaded
   // span lib/ephem.ts falls back to the mean model and the HUD must say so instead of claiming 'exact'.
   const coverage = useSelene((s) => {
@@ -46,67 +52,150 @@ function Hud({ source, nParticles, tracksLoaded, tracksTotal }: { source: string
     return hasBasis() ? (hasBasisAt(ms) ? 'exact' : 'outside') : ephemerisCovers(ms) ? 'table' : 'mean';
   });
   const exact = !!eph && coverage === 'exact';
-  const frameText =
+  const frameShort = frame === 'rotating' ? 'Earth–Moon rotating frame' : exact ? 'Inertial · Earth-centred · DE440s basis' : coverage === 'outside' ? 'Inertial · mean-element fallback (cursor outside ephemeris span)' : 'Inertial · planar mean-element fallback';
+  const frameLong =
     frame === 'rotating'
-      ? 'EARTH–MOON ROTATING (SYNODIC) · Moon pinned at (1−μ, 0, 0)'
+      ? 'Synodic frame: Earth–Moon line fixed on +x, Moon pinned at (1−μ, 0, 0); 1 unit = instantaneous Earth–Moon distance.'
       : exact
-        ? 'INERTIAL · Earth-centred, axes = rotating frame at t0 · DE440s basis'
-        : coverage === 'outside'
-          ? 'INERTIAL · cursor outside the loaded ephemeris span → planar mean-element fallback'
-          : 'INERTIAL · planar mean-element Earth–Moon line (no ephemeris basis)';
+        ? 'Earth-centred view, axes = rotating frame at t0; the Earth–Moon line sweeps along the DE440s ephemeris.'
+        : 'Earth-centred view with the planar mean-element Earth–Moon line (no ephemeris basis for this cursor).';
   const nObjects = useSelene((s) => (s.scenario ? new Set(s.scenario.frames.flatMap((f) => f.objects.map((o) => o.id))).size : 0));
+  const motion = source === 'scenario' ? 'scenario frames' : source === 'idle' && meta ? `backend trajectories${tracksTotal && tracksLoaded < tracksTotal ? ` (${tracksLoaded}/${tracksTotal} loaded)` : ''}` : source === 'idle' ? 'browser CR3BP display propagation' : '—';
+  const ephText = eph ? (exact ? `${eph.source ?? 'de440s'} · exact rotating basis` : coverage === 'outside' ? `${eph.source ?? 'de440s'} loaded for another span · cursor uses mean elements` : (eph.source ?? 'mean elements')) : 'loading…';
   return (
     <div className="hud" data-label-obstacle>
-      <div className="hud-frame">
+      <div className="hud-line">
         <span className={`frame-pill${frame === 'inertial' ? ' inertial' : ''}`}>{frame === 'rotating' ? 'ROT' : 'INR'}</span>
-        <b>{frameText}</b>
+        <b className="trunc" title={frameLong}>
+          {frameShort}
+        </b>
+        <button className={`hud-i${more ? ' open' : ''}`} onClick={() => setMore((v) => !v)} title={more ? 'Hide details' : 'Catalog, motion source and ephemeris details'} aria-expanded={more}>
+          i
+        </button>
       </div>
-      <div>
-        CATALOG <b>{n}</b>
-        {meta && (
+      <div className="hud-line">
+        {scenario ? (
           <>
-            {' '}
-            (<b>{meta.n_simulated}</b> simulated · <b>{meta.n_real}</b> real)
+            <span className="muted">SCENARIO</span>
+            <b className="trunc" title={scenario.meta.title}>
+              {scenario.meta.title}
+            </b>
+            <span className="muted">T{fmtElapsed(tMin)}</span>
           </>
-        )}{' '}
-        · MOTION{' '}
-        <b>
-          {source === 'scenario'
-            ? 'SCENARIO FRAMES'
-            : source === 'idle' && meta
-              ? `BACKEND TRAJECTORIES${tracksTotal && tracksLoaded < tracksTotal ? ` (${tracksLoaded}/${tracksTotal} loaded)` : ''}`
-              : source === 'idle'
-                ? 'CR3BP DISPLAY PROPAGATION'
-                : '—'}
-        </b>
+        ) : (
+          <>
+            <span className="muted">CATALOG</span>
+            <b>{n}</b>
+            {meta && (
+              <span className="muted">
+                {meta.n_simulated} simulated · {meta.n_real} real
+              </span>
+            )}
+            <span className="muted">·</span>
+            <b>{eph ? (exact ? (eph.source ?? 'de440s').toUpperCase() : 'mean elements') : 'ephemeris loading…'}</b>
+          </>
+        )}
       </div>
-      <div>
-        EPHEMERIS{' '}
-        <b>
-          {eph
-            ? exact
-              ? `${eph.source ?? 'de440s'} · exact rotating basis`
-              : coverage === 'outside'
-                ? `${eph.source ?? 'de440s'} loaded for another span · cursor uses mean elements`
-                : (eph.source ?? 'mean elements')
-            : 'loading…'}
-        </b>
-      </div>
-      {nParticles > 0 && (
-        <div>
-          CLOUD <b>{nParticles.toLocaleString('en-US')} particles</b>
-        </div>
-      )}
-      {scenario && (
-        <div>
-          SCENARIO <b>{scenario.meta.title}</b>
-          <span className="muted">
-            {' '}
-            · {nObjects} scenario object{nObjects === 1 ? '' : 's'} drawn; the {n}-object catalog is hidden while the scenario plays
-          </span>
+      {more && (
+        <div className="hud-more">
+          <div>{frameLong}</div>
+          <div>
+            Catalog <b>{n}</b>
+            {meta ? ` (${meta.n_simulated} simulated · ${meta.n_real} real)` : ''} · motion <b>{motion}</b>
+          </div>
+          <div>
+            Ephemeris <b>{ephText}</b>
+          </div>
+          {nParticles > 0 && (
+            <div>
+              Cloud <b>{nParticles.toLocaleString('en-US')} particles</b>
+            </div>
+          )}
+          {scenario && (
+            <div>
+              {nObjects} scenario object{nObjects === 1 ? '' : 's'} drawn; the {n}-object catalog is hidden while the scenario plays.
+            </div>
+          )}
         </div>
       )}
       <MockLine />
+    </div>
+  );
+}
+
+/** Colour keys for what is on screen: custody (scenario), exclusion cones, clouds/reachable sets. */
+function Keys({ hasClouds, hasReach }: { hasClouds: boolean; hasReach: boolean }) {
+  const scenario = useSelene((s) => s.scenario);
+  const excl = useSelene((s) => s.layers.exclusion);
+  const fov = useSelene((s) => s.layers.fov);
+  if (!scenario && !excl) return null;
+  const ck = scenario?.meta.custody_km, lk = scenario?.meta.lost_km;
+  const custodyTitle = ck && lk ? `Custody from the particle-cloud σ_pos: held < ${ck.toLocaleString('en-US')} km · degraded ${ck.toLocaleString('en-US')}–${lk.toLocaleString('en-US')} km · lost ≥ ${lk.toLocaleString('en-US')} km (thresholds from the scenario)` : 'Custody status per scenario frame (σ thresholds set by the scenario engine)';
+  return (
+    <div className="hud-keys" data-label-obstacle>
+      {scenario && (
+        <div className="key" title={custodyTitle}>
+          <span className="lbl">custody</span>
+          <span>
+            <i style={{ background: 'var(--held)' }} />
+            held
+          </span>
+          <span>
+            <i style={{ background: 'var(--degraded)' }} />
+            degraded
+          </span>
+          <span>
+            <i style={{ background: 'var(--lost)' }} />
+            lost
+          </span>
+        </div>
+      )}
+      {excl && (
+        <div className="key" title="Exclusion cones: a sensor cannot observe inside these half-angles (Sun 40°, Moon/Earth 10° default; ground lunar glare 3–15° with phase)">
+          <span className="lbl">exclusion</span>
+          <span>
+            <i className="sq" style={{ background: '#f5b700' }} />
+            Sun
+          </span>
+          <span>
+            <i className="sq" style={{ background: '#9aa4b2' }} />
+            Moon
+          </span>
+          <span>
+            <i className="sq" style={{ background: '#4cc9f0' }} />
+            Earth
+          </span>
+        </div>
+      )}
+      {scenario && fov && (
+        <div className="key" title="Teal wedge = field of view of a sensor observing the selected object; dashed line = line of sight of a tasked sensor; ◇ = space observer">
+          <span className="lbl">sensors</span>
+          <span>
+            <i className="sq" style={{ background: 'rgba(45,212,191,0.35)', border: '1px solid #2dd4bf' }} />
+            FOV wedge
+          </span>
+          <span>
+            <i className="sq" style={{ background: 'transparent', borderTop: '2px dashed #2dd4bf', height: 0, width: 14, borderRadius: 0 }} />
+            line of sight
+          </span>
+        </div>
+      )}
+      {scenario && (hasClouds || hasReach) && (
+        <div className="key" title="Amber: uncertainty particle cloud (where the object probably is). Violet: reachable set under the assumed Δv budget (where it could go).">
+          {hasClouds && (
+            <span>
+              <i style={{ background: '#ffb86b' }} />
+              uncertainty cloud
+            </span>
+          )}
+          {hasReach && (
+            <span>
+              <i style={{ background: '#9b5de5' }} />
+              reachable set
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -126,7 +215,7 @@ function ScaleBar() {
       <div className="bar" style={{ width: `${px.toFixed(0)}px` }} />
       <div className="txt">
         <span>{nice.toLocaleString('en-US')} km</span>
-        <span className="muted">scale: 1 unit = 384,400 km (L*)</span>
+        <span className="muted">1 unit = 384,400 km (L*)</span>
       </div>
     </div>
   );
@@ -134,10 +223,26 @@ function ScaleBar() {
 
 function MockLine() {
   const backend = useBackendStatus();
-  const { mock } = useLiveMockLists();
   if (backend === 'offline') return <div className="hud-mock offline">BACKEND OFFLINE — MOCK DATA (browser CR3BP)</div>;
-  if (mock.length === 0) return null;
-  return <div className="hud-mock">MOCK FALLBACK <b>{mock.join(', ')}</b></div>;
+  return null;
+}
+
+/**
+ * Presenter caption: the story event currently being narrated (store.caption — one event at a time, with a
+ * wall-clock dwell each, fed by the demo driver as the cursor crosses events; see useDemoDriver.ts). Identical for
+ * the backend bundle and the browser mock.
+ */
+function PresenterCaption() {
+  const scenario = useSelene((s) => s.scenario);
+  const ev: SeleneEvent | null = useSelene((s) => s.caption);
+  if (!scenario || !ev) return null;
+  return (
+    <div className="caption" style={{ ['--sev' as string]: severityColor(ev.severity) }} data-label-obstacle key={`${ev.t}-${ev.kind}`}>
+      <span className="kind">{kindLabel(ev.kind)}</span>
+      <span className="h">{ev.headline ?? deriveHeadline(ev)}</span>
+      <span className="t">T{fmtElapsed(ev.t)}</span>
+    </div>
+  );
 }
 
 export function OpsPage() {
@@ -146,6 +251,8 @@ export function OpsPage() {
   const layers = useSelene((s) => s.layers);
   const families = useSelene((s) => s.families);
   const sensorsCfg = useSelene((s) => s.sensors);
+  const catalogN = useSelene((s) => s.catalog.length);
+  const eph = useSelene((s) => s.ephemeris);
   const setCatalog = useSelene((s) => s.setCatalog);
   const setBaseEpoch = useSelene((s) => s.setBaseEpoch);
   const setFamilies = useSelene((s) => s.setFamilies);
@@ -156,6 +263,7 @@ export function OpsPage() {
   const t0Sec = useSelene((s) => s.t0Sec);
   const t1Sec = useSelene((s) => s.t1Sec);
   const { objects, clouds, sensors, reachable, source, tracksLoaded, tracksTotal } = useScenarioFrame();
+  const [hintFaded, setHintFaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -212,6 +320,12 @@ export function OpsPage() {
     };
   }, [t0Iso, t0Sec, t1Sec, setEphemeris]);
 
+  // Controls hint fades after 8 s or on the first interaction with the viewport.
+  useEffect(() => {
+    const id = window.setTimeout(() => setHintFaded(true), 8000);
+    return () => window.clearTimeout(id);
+  }, []);
+
   // Deep links for the pitch / smoke tests: ?demo=1 auto-plays the story; &t=<sec> jumps there and pauses;
   // &frame=inertial switches the view; &view=<preset>; &layers=a,b; &tab=object|events|brief; &select=<id>.
   // Guarded so React.StrictMode's double-mount in dev starts the demo once.
@@ -250,25 +364,30 @@ export function OpsPage() {
   // Ground sites = ids in the sensor config's ground list (fallback: GND- prefix); they now carry pos_rot too.
   const activeSites = useMemo(() => new Set(sensors.filter((s) => s.active && (groundIds.has(s.id) || s.id.startsWith('GND'))).map((s) => s.id)), [sensors, groundIds]);
   const nParticles = clouds.reduce((a, c) => a + c.positions.length / 3, 0);
+  const loading = !eph || catalogN === 0 || (source === 'idle' && tracksTotal > 0 && tracksLoaded < tracksTotal);
 
   return (
     <div className="ops">
       <TopBar />
-      <div className="viewport">
+      <div className="viewport" onPointerDown={() => setHintFaded(true)}>
         <SceneRoot>
           <GroundSites visible={layers.sites} activeIds={activeSites} />
           <OrbitFamilies data={families} visible={layers.families} />
           <Objects objects={objects} showTrails={layers.trails} />
-          {layers.clouds && clouds.map((c) => <ParticleCloud key={c.objectId} positions={c.positions} />)}
+          {layers.clouds && clouds.map((c) => <ParticleCloud key={c.objectId} objectId={c.objectId} positions={c.positions} sigmaKm={c.sigmaKm} showLabel={layers.labels} />)}
           {layers.reach && <Reachable data={reachable} />}
           {layers.fov && <SensorFOVCones sensors={sensors} targets={targets} groundIds={groundIds} />}
+          {layers.fov && <SensorMarkers sensors={sensors} groundIds={groundIds} showLabels={layers.labels} />}
           {layers.exclusion && <ExclusionCones sensors={sensors} config={sensorsCfg} groundIds={groundIds} />}
         </SceneRoot>
+        {loading && <div className="loadbar" role="progressbar" aria-label="Loading scene data" />}
         <Hud source={source} nParticles={nParticles} tracksLoaded={tracksLoaded} tracksTotal={tracksTotal} />
+        <Keys hasClouds={layers.clouds && clouds.length > 0} hasReach={layers.reach && !!reachable} />
+        <PresenterCaption />
         <Toasts />
         <CameraPresets />
         <ScaleBar />
-        <div className="hud-br">
+        <div className={`hud-br${hintFaded ? ' fade' : ''}`}>
           drag: orbit · wheel: zoom · right-drag: pan · click object: select
           <br />
           all SIMULATED objects/events are notional

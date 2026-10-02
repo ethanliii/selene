@@ -2,12 +2,14 @@
  * Uncertainty particle cloud: THREE.Points over a PRE-ALLOCATED Float32Array (MAX_POINTS) with additive blending.
  * On a new frame the incoming positions are copied into the buffer, the draw range is set, and per-vertex colours
  * are computed from the Mahalanobis-like radius r = sqrt(Σ((p−c)/σ_axis)²) (diagonal covariance of the sample):
- * core particles (r < 1) are bright/white-hot, the 1–2σ shell is the object colour, the tail (r > 2) is dim.
+ * core particles (r < 1) are bright/white-hot, the 1–2σ shell is the object colour (amber, distinct from the violet
+ * reachable set), the tail (r > 2) is dim. A "σ = X km" tag hangs at the centroid when the cloud's σ is known.
  * Nothing is allocated per render tick; per frame update is O(N) with no new typed arrays.
  */
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import type { Vec3 } from '../api/types';
+import { Label } from './Label';
 
 export const MAX_POINTS = 32768;
 
@@ -18,12 +20,17 @@ interface Props {
   size?: number;
   opacity?: number;
   visible?: boolean;
+  /** Object the cloud belongs to (label id) and its σ_pos [km] for the centroid tag. */
+  objectId?: string;
+  sigmaKm?: number;
+  showLabel?: boolean;
 }
 
 const CORE = new THREE.Color('#ffffff');
+const SIGMA_OFFSET = { dx: -98, dy: 12 };
 const TAIL = new THREE.Color('#3a2a10');
 
-export function ParticleCloud({ positions, color = '#ffb86b', size = 0.003, opacity = 0.85, visible = true }: Props) {
+export function ParticleCloud({ positions, color = '#ffb86b', size = 0.003, opacity = 0.85, visible = true, objectId, sigmaKm, showLabel = true }: Props) {
   const { geom, posAttr, colAttr } = useMemo(() => {
     const g = new THREE.BufferGeometry();
     const pa = new THREE.BufferAttribute(new Float32Array(MAX_POINTS * 3), 3);
@@ -36,6 +43,7 @@ export function ParticleCloud({ positions, color = '#ffb86b', size = 0.003, opac
     return { geom: g, posAttr: pa, colAttr: ca };
   }, []);
   const mid = useMemo(() => new THREE.Color(color), [color]);
+  const [centroid, setCentroid] = useState<Vec3 | null>(null);
 
   useEffect(() => {
     const n = Math.min(MAX_POINTS, Math.floor(positions.length / 3));
@@ -84,15 +92,22 @@ export function ParticleCloud({ positions, color = '#ffb86b', size = 0.003, opac
     colAttr.needsUpdate = true;
     geom.setDrawRange(0, n);
     geom.computeBoundingSphere();
+    // Hang the σ tag at the −σ_y (camera-side) edge of the cloud; the label is then offset further down-left in
+    // screen space so it never shares the object label's box (which sits up-right of the marker).
+    setCentroid(n > 0 ? [cx, cy - sy, cz - sz] : null);
   }, [positions, geom, posAttr, colAttr, mid]);
 
   useEffect(() => () => geom.dispose(), [geom]);
 
   if (!visible || positions.length < 3) return null;
+  const sigmaText = sigmaKm !== undefined && Number.isFinite(sigmaKm) ? `σ = ${sigmaKm >= 100 ? Math.round(sigmaKm).toLocaleString('en-US') : sigmaKm.toFixed(1)} km` : null;
   return (
-    <points geometry={geom} frustumCulled={false}>
-      <pointsMaterial vertexColors size={size} sizeAttenuation transparent opacity={opacity} depthWrite={false} blending={THREE.AdditiveBlending} />
-    </points>
+    <group>
+      <points geometry={geom} frustumCulled={false}>
+        <pointsMaterial vertexColors size={size} sizeAttenuation transparent opacity={opacity} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </points>
+      {showLabel && centroid && sigmaText && <Label position={centroid} text={sigmaText} variant="tag" className="sigma" id={`cloud-${objectId ?? 'x'}`} priority={69} color="#ffb86b" offset={SIGMA_OFFSET} />}
+    </group>
   );
 }
 

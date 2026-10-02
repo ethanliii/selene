@@ -103,7 +103,7 @@ export function SystemPlot({ arch }: { arch: ArchitectureDef | null }) {
             <rect x={px - 6} y={py - 6} width={12} height={12} transform={`rotate(45 ${px} ${py})`} fill="var(--accent)" stroke="var(--bg)" strokeWidth={2} />
             <text x={px + 10} y={py - 8} className="sp-label accent">
               S{i + 1} · m
-              <tspan baselineShift="sub" fontSize="11px">
+              <tspan baselineShift="sub" fontSize="12px">
                 lim
               </tspan>{' '}
               {s.limiting_mag.toFixed(1)}
