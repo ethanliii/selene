@@ -1,0 +1,23 @@
+# toolchains / envs (project-local, never committed)
+.venv/
+.tools/
+node_modules/
+frontend/node_modules/
+frontend/dist/
+backend/selene/api/static/
+# large raw caches (regenerable; compact derived tables ARE committed)
+data/cache/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+.numba_cache/
+# misc
+.DS_Store
+*.log
+playwright-report/
+test-results/
+.claude/worktrees/
+run.log
+.ruff_cache/

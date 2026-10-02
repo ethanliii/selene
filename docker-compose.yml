@@ -1,0 +1,7 @@
+services:
+  selene:
+    build: .
+    ports: ["8000:8000"]
+    volumes:
+      - ./data:/app/data:ro
+    command: python -m uvicorn selene.api.app:app --host 0.0.0.0 --port 8000

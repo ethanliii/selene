@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "selene"
+version = "0.1.0"
+description = "SELENE - cislunar space domain awareness (custody, maneuver detection, reachability, sensor tasking, architecture trades)"
+requires-python = ">=3.11"
+dependencies = [
+  "fastapi", "uvicorn[standard]", "numpy", "scipy", "numba", "jplephem", "skyfield",
+  "astropy", "pyarrow", "pandas", "pydantic", "httpx", "python-dotenv", "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-xdist", "httpx"]
+
+[tool.setuptools.packages.find]
+include = ["selene*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q -p no:cacheprovider"
+filterwarnings = ["ignore::DeprecationWarning", "ignore::numba.NumbaPerformanceWarning"]
