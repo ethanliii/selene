@@ -13,7 +13,9 @@ the fast build is allowed through the route (``fast=false`` answers 400 with the
 build is the committed artefact and is produced by ``python -m selene.scenario.demo --rebuild``.  Note
 that a rebuild REPLACES the served file (``data/demo/scenario.json`` unless ``SELENE_DEMO_SCENARIO`` points
 elsewhere), so after rehearsing with the route restore the full bundle with ``git checkout data/demo``.
-It is meant for development and the pitch rehearsal, not for a public deployment.
+Because of that the route answers ``403`` unless ``SELENE_ALLOW_REBUILD=1`` is set or ``SELENE_DEMO_SCENARIO``
+redirects the bundle to a scratch path (``make demo`` sets neither, so a stray call during a live demo
+cannot replace the story).  It is meant for development and the pitch rehearsal, not for a public deployment.
 """
 from __future__ import annotations
 
@@ -40,12 +42,19 @@ REBUILD_HINT = ("demo scenario bundle not found; build it with "
 
 
 def _paths() -> tuple[Path, Path]:
-    """Bundle paths (overridable through SELENE_DEMO_SCENARIO for tests)."""
+    """Bundle paths (overridable through SELENE_DEMO_SCENARIO for tests / scratch rebuilds)."""
     env = os.environ.get("SELENE_DEMO_SCENARIO")
     if env:
         p = Path(env)
         return p, p.with_name(p.stem + "_meta.json")
     return SCENARIO_PATH, META_PATH
+
+
+def rebuild_allowed() -> bool:
+    """``POST /api/demo/rebuild`` is unauthenticated and overwrites the served bundle, so it is off unless
+    ``SELENE_ALLOW_REBUILD`` is set or the bundle path was redirected away from the committed file."""
+    flag = os.environ.get("SELENE_ALLOW_REBUILD", "").strip().lower()
+    return flag in ("1", "true", "yes", "on") or bool(os.environ.get("SELENE_DEMO_SCENARIO"))
 
 
 def load_bundle(force: bool = False) -> dict:
@@ -107,6 +116,11 @@ def rebuild(fast: bool = Query(True, description="must be true: reduced sample c
     if not fast:
         raise HTTPException(400, detail="POST /api/demo/rebuild only runs the fast build; for the full bundle run "
                                         "`cd backend && ../.venv/bin/python -m selene.scenario.demo --rebuild`")
+    if not rebuild_allowed():
+        raise HTTPException(403, detail="demo rebuild over HTTP is disabled: it would overwrite the committed full-fidelity bundle "
+                                        "data/demo/scenario.json with a fast build during a live demo. Enable it with "
+                                        "SELENE_ALLOW_REBUILD=1, or point SELENE_DEMO_SCENARIO at a scratch path "
+                                        "(rebuilds then write there), or run `python -m selene.scenario.demo --rebuild --fast --out <path>`")
     path, meta_path = _paths()
     tic = time.perf_counter()
     with _LOCK:

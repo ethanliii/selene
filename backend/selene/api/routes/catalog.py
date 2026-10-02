@@ -29,22 +29,65 @@ DISCLAIMER = (
 
 # ---------------------------------------------------------------------------
 # helpers shared by the core routes
-def parse_utc(s: str, what: str = "epoch") -> float:
-    """ISO-8601 UTC (optionally with a trailing 'Z') -> TDB seconds past J2000; 400 on failure."""
+def kernel_span_tdb_s() -> tuple[float, float]:
+    """(start, end) TDB seconds of the DE440s Earth-Moon coverage (cached; 1849-12-26 .. 2150-01-22)."""
+    global _KERNEL_SPAN
+    if _KERNEL_SPAN is None:
+        from selene.dynamics.ephemeris import get_ephemeris
+
+        _KERNEL_SPAN = get_ephemeris().span_tdb_s()
+    return _KERNEL_SPAN
+
+
+_KERNEL_SPAN: Optional[tuple[float, float]] = None
+
+
+def parse_utc(s: str, what: str = "epoch", *, check_span: bool = True) -> float:
+    """ISO-8601 UTC (optionally with a trailing 'Z') -> TDB seconds past J2000; 400 on failure.
+
+    With ``check_span`` (default) an epoch outside the DE440s kernel coverage is also a 400 that
+    names the valid span, instead of a ``jplephem.OutOfRangeError`` 500 deep inside a route.
+    """
     try:
         txt = str(s).strip()
         if txt.endswith("Z") or txt.endswith("z"):
             txt = txt[:-1]
-        return float(seconds_since_j2000_tdb(txt))
+        t = float(seconds_since_j2000_tdb(txt))
     except Exception as e:  # noqa: BLE001
         raise HTTPException(400, detail=f"could not parse {what} {s!r} as an ISO UTC time: {e}")
+    if check_span:
+        try:
+            lo, hi = kernel_span_tdb_s()
+        except FileNotFoundError:
+            raise   # app-level handler -> 503 with the download hint
+        if not (lo <= t <= hi):
+            raise HTTPException(400, detail=f"{what} {s!r} is outside the DE440s ephemeris coverage "
+                                            f"{tdb_s_to_utc_iso(lo)[0][:10]} .. {tdb_s_to_utc_iso(hi)[0][:10]}")
+    return t
 
 
 def tdb_s_to_utc_iso(t_s) -> list[str]:
-    """Vectorised TDB seconds past J2000 -> ISO UTC strings (millisecond precision)."""
+    """Vectorised TDB seconds past J2000 -> ISO UTC strings, millisecond precision, trailing ``Z``.
+
+    The ``Z`` is deliberate: ``new Date("2026-03-01T00:00:00.000")`` in a browser is parsed as
+    *local* time, so every epoch the API echoes carries the UTC designator.
+    """
     t = np.atleast_1d(np.asarray(t_s, dtype=np.float64))
     iso = Time(J2000_JD + t / 86400.0, format="jd", scale="tdb").utc.isot
-    return [str(x)[:23] for x in np.atleast_1d(iso)]
+    return [str(x)[:23] + "Z" for x in np.atleast_1d(iso)]
+
+
+def ensure_z(iso: str) -> str:
+    """Append the UTC designator to an ISO string that lacks an offset."""
+    s = str(iso)
+    return s if (s.endswith("Z") or s.endswith("z") or "+" in s[10:]) else s + "Z"
+
+
+def err_detail(e: BaseException) -> str:
+    """Error message for a 4xx ``detail``: ``str(KeyError('x'))`` is ``"'x'"`` (extra quotes), use its argument."""
+    if isinstance(e, KeyError) and e.args:
+        return str(e.args[0])
+    return str(e)
 
 
 def round_floats(x, ndigits: int = 6):
@@ -67,16 +110,22 @@ def _summary_or_404(obj_id: str) -> dict:
     cat = get_catalog()
     if obj_id not in cat:
         raise HTTPException(404, detail=f"unknown object {obj_id!r}; known ids: {cat.ids()}")
-    return round_floats(cat.summary(obj_id), 6)
+    return _summary(cat, obj_id)
+
+
+def _summary(cat, obj_id: str) -> dict:
+    o = round_floats(cat.summary(obj_id), 6)
+    o["epoch_utc"] = ensure_z(o["epoch_utc"])
+    return o
 
 
 # ---------------------------------------------------------------------------
 @router.get("/objects", response_model=CatalogOut)
 def list_objects(kind: Optional[Literal["simulated", "horizons"]] = Query(None)):
     cat = get_catalog()
-    objs = [round_floats(cat.summary(e.id), 6) for e in cat.objects(kind)]
+    objs = [_summary(cat, e.id) for e in cat.objects(kind)]
     return CatalogOut(
-        epoch_utc=cat.epoch_utc,
+        epoch_utc=ensure_z(cat.epoch_utc),
         n_simulated=sum(1 for o in objs if o["kind"] == "simulated"),
         n_real=sum(1 for o in objs if o["kind"] == "horizons"),
         disclaimer=DISCLAIMER,

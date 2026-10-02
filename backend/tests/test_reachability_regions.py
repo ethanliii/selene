@@ -49,15 +49,57 @@ def test_jacobi_constants_match_literature():
     assert np.isclose(jacobi_rot(s[:3], s[3:]), jacobi(s))
 
 
-def test_gateway_spheres():
+def test_gateway_pointwise_fallback_is_the_proximity_ball():
+    """Without a time series (series=False) the gateways fall back to the neck ball."""
     inside = L[0] + np.array([0.03, 0.02, 0.01])
     outside = L[0] + np.array([0.05, 0.02, 0.0])
     inp = _inputs(pos_rot=[inside, outside, L[1], L[1] + [0.0, 0.0, 0.06]])
+    inp.series = False
     assert REG["l1_gateway"].contains(inp).tolist() == [True, False, False, False]
     assert REG["l2_gateway"].contains(inp).tolist() == [False, False, True, False]
     # configurable radius
     big = {r.key: r for r in default_regions(gateway_radius_nd=0.08)}
     assert big["l1_gateway"].contains(inp).tolist() == [True, True, False, False]
+
+
+def _series(xs, y=0.0):
+    """(T, 3) rotating-frame path along x through the L1 neighbourhood (y, z offsets fixed)."""
+    return np.array([[x, y, 0.0] for x in xs])
+
+
+def test_gateway_is_a_neck_transit_not_a_graze():
+    """The gateway test is a realm change through the neck ball: a path that crosses the plane x = x_L1 and
+    leaves the ball on the other side transits; a DRO-like graze that dips past L1 and returns to the lunar
+    side does not, however close it comes (the demo DRO comes within 1 400 km of L1 and 4 000 km past the plane)."""
+    xl = L[0][0]
+    r = 0.05
+    transit = _series([xl + 0.10, xl + 0.04, xl + 0.01, xl - 0.01, xl - 0.04, xl - 0.10])          # Moon side -> Earth side
+    graze = _series([xl + 0.10, xl + 0.04, xl + 0.01, xl - 0.011, xl + 0.01, xl + 0.04, xl + 0.10])  # dips 4 200 km past, returns
+    far_cross = _series([xl + 0.10, xl + 0.01, xl - 0.01, xl - 0.10], y=0.08)   # crosses the plane OUTSIDE the ball
+    for path, expect in ((transit, True), (graze, False), (far_cross, False)):
+        inp = _inputs(pos_rot=path)
+        m = REG["l1_gateway"].contains(inp)
+        assert m.shape == (len(path),)
+        assert bool(m.any()) is expect, (path[:, 0] - xl, m)
+    m = REG["l1_gateway"].contains(_inputs(pos_rot=transit))
+    assert m.tolist() == [False, True, True, True, True, False]        # the epochs inside the ball during the transit
+    assert np.argmax(m) == 1                                           # first hit = neck entry
+    # unresolved at the end of the horizon: counts once the plane has been crossed
+    half = _series([xl + 0.10, xl + 0.04, xl + 0.01, xl - 0.01])
+    assert REG["l1_gateway"].contains(_inputs(pos_rot=half)).tolist() == [False, True, True, True]
+    half_no_cross = _series([xl + 0.10, xl + 0.04, xl + 0.01])
+    assert not REG["l1_gateway"].contains(_inputs(pos_rot=half_no_cross)).any()
+    # (N, T, 3) batches: rows are independent trajectories (equal length 7; the transit row coasts on in the Earth realm)
+    transit7 = np.vstack([transit, [[xl - 0.20, 0.0, 0.0]]])
+    batch = np.stack([transit7, graze, np.full((7, 3), np.nan)])
+    out = REG["l1_gateway"].contains(RegionInputs(batch, np.zeros((3, 7, 3)) + 1e5, np.zeros((3, 7, 3)) + 1e5))
+    assert out.shape == (3, 7) and out[0].any() and not out[1].any() and not out[2].any()
+    assert out[0].tolist() == [False, True, True, True, True, False, False]
+    # the same test at L2 (lunar realm -> exterior realm)
+    xl2 = L[1][0]
+    out_l2 = REG["l2_gateway"].contains(_inputs(pos_rot=_series([xl2 - 0.10, xl2 - 0.02, xl2 + 0.02, xl2 + 0.10])))
+    assert out_l2.tolist() == [False, True, True, False]
+    assert r == REG["l1_gateway"].params["radius_nd"] and REG["l1_gateway"].params["membership"] == "neck_transit"
 
 
 def test_nrho_corridor_tube():
@@ -129,8 +171,11 @@ def test_classify_broadcasts_over_grid_shapes():
     assert set(out) == set(REG)
     for k, v in out.items():
         assert v.shape == (n, t)
-    assert out["l1_gateway"].all()
-    assert not out["l2_gateway"].any()
+    # a path sitting AT L1 never changes realm: not a transit (series semantics) ...
+    assert not out["l1_gateway"].any() and not out["l2_gateway"].any()
+    # ... but it is inside the proximity ball point-wise
+    inp.series = False
+    assert classify(inp)["l1_gateway"].all()
 
 
 def test_region_as_dict_is_jsonable():

@@ -11,7 +11,8 @@ from typing import Any, Literal, Optional, Union
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from selene.api.routes.catalog import parse_utc, round_floats, tdb_s_to_utc_iso
+from selene.api.observer_spec import SpaceObserverIn
+from selene.api.routes.catalog import err_detail, parse_utc, round_floats, tdb_s_to_utc_iso
 from selene.dynamics.frames import DEMO_EPOCH_UTC
 from selene.tasking.greedy import ScheduleResult, run_greedy
 from selene.tasking.information import DEFAULT_Q_PSD
@@ -22,6 +23,9 @@ from selene.tasking.scenario import DEFAULT_HORIZON_H, DEFAULT_OBJECT_IDS, DEFAU
 router = APIRouter(prefix="/tasking", tags=["tasking"])
 
 Method = Literal["greedy", "milp", "random", "round_robin", "compare"]
+#: the route is synchronous; the MILP honours the budget by falling back to greedy, but a solver that
+#: *finishes* inside a 300 s budget still blocked a worker for 24 s (full preset, 18 objects, 5-min slots)
+MAX_TIME_BUDGET_S = 30.0
 
 ASSUMPTIONS = [
     "Linear covariance analysis: measurement noise is never sampled, so the estimate mean stays on the "
@@ -51,7 +55,9 @@ class TaskingScheduleRequest(BaseModel):
     object_ids: Union[str, list[str]] = Field("default", description="'default' (8 xGEO objects), 'all_simulated', 'all', or ids")
     sensor_ids: Optional[list[str]] = Field(None, description="explicit sensor ids (ground sites / space observers)")
     preset: Optional[str] = Field(None, description=f"sensor preset; one of {sorted(TASKING_PRESETS)} (default 'default' = mixed_9)")
-    extra_sensors: list[dict[str, Any]] = Field(default_factory=list, description="ad-hoc SpaceObserver kwargs (architecture studies)")
+    extra_sensors: list[SpaceObserverIn] = Field(default_factory=list,
+                                                 description="ad-hoc space observers (architecture studies): id and platform_orbit "
+                                                             "required, other SpaceObserver fields optional; unknown keys rejected")
     t0: str = Field(DEMO_EPOCH_UTC, description="UTC ISO start")
     t1: Optional[str] = Field(None, description="UTC ISO end (default t0 + 48 h)")
     slot_min: float = Field(DEFAULT_SLOT_MIN, gt=0.5, le=720)
@@ -70,7 +76,9 @@ class TaskingScheduleRequest(BaseModel):
     priorities: dict[str, float] = Field(default_factory=dict)
     horizon_slots: int = Field(4, ge=1, le=12, description="MILP look-ahead window (slots)")
     revisit_weight: float = Field(0.05, ge=0)
-    time_budget_s: float = Field(20.0, gt=0, le=300, description="wall-clock budget for the MILP path; remaining slots fall back to greedy")
+    time_budget_s: float = Field(20.0, gt=0, le=MAX_TIME_BUDGET_S,
+                                 description=f"wall-clock budget for the MILP path (<= {MAX_TIME_BUDGET_S:.0f} s, synchronous route); "
+                                             "remaining slots fall back to greedy")
     seed: int = 0
     max_slots: int = Field(1000, ge=1, le=5000, description="guard on n_slots (runtime)")
     include_series: bool = True
@@ -134,14 +142,14 @@ def schedule(req: TaskingScheduleRequest):
         raise HTTPException(400, detail=f"{n_slots} slots exceeds max_slots={req.max_slots}; increase slot_min or shorten the window")
     try:
         scn = make_scenario(
-            req.object_ids, sensor_ids=req.sensor_ids, preset=req.preset, extra_sensors=req.extra_sensors,
+            req.object_ids, sensor_ids=req.sensor_ids, preset=req.preset, extra_sensors=[s.build() for s in req.extra_sensors],
             t0_s=t0_s, t1_s=t1_s, slot_min=req.slot_min, q_psd=req.q_psd, initial_sigma_km=req.initial_sigma_km,
             initial_sigma_vel_kms=req.initial_sigma_vel_kms, sigma_arcsec=req.sigma_arcsec, priorities=req.priorities,
             gain_kind=req.gain_kind, acquisition=req.acquisition, n_obs_per_slot=req.n_obs_per_slot,
             search_tiles=req.search_tiles, slew_fraction=req.slew_fraction, tslo_weight=req.tslo_weight,
         )
     except (KeyError, ValueError, TypeError) as e:
-        raise HTTPException(400, detail=str(e))
+        raise HTTPException(400, detail=err_detail(e))
     except RuntimeError as e:
         raise HTTPException(500, detail=f"scenario build failed: {e}")
     timing = dict(scn.timing)

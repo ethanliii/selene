@@ -1,0 +1,12 @@
+.venv
+.tools
+.numba_cache
+frontend/node_modules
+frontend/dist
+backend/selene/api/static
+data/cache
+**/__pycache__
+*.egg-info
+*.log
+.git
+.claude

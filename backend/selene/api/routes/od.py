@@ -28,7 +28,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 
-from selene.api.routes.catalog import parse_utc, tdb_s_to_utc_iso
+from selene.api.routes.catalog import err_detail, parse_utc, tdb_s_to_utc_iso
 from selene.dynamics.ephemeris import EphemParams
 from selene.dynamics.frames import DEMO_EPOCH_UTC
 from selene.objects.catalog import get_catalog
@@ -41,6 +41,17 @@ from selene.od.types import jsonable
 from selene.od.ukf import UKFConfig, ekf_run, ukf_run
 
 router = APIRouter(prefix="/od", tags=["od"])
+
+#: Per-request budgets (every field bound is individually sane, their product was not: a 14-day /
+#: 5-min / 5000-particle / 0.5-h-step / 2000-exported request took 36 s and returned 87 MB).
+#: visibility evaluations = epochs x sensors (each ~0.3 ms; 20 000 ~ 6 s worst case)
+MAX_EPOCH_SENSOR_EVALS = 20_000
+#: exported particle positions = frames x max_export (two frames of 3 floats each ~ 60 B -> ~7 MB)
+MAX_PARTICLE_POINTS = 120_000
+#: particle output frames (t_grid_h / step_h + 1); step_h is clamped up, never rejected
+MAX_PARTICLE_FRAMES = 400
+#: sequential filter updates (~15 ms each with the iterated update): 600 ~ 9 s worst case
+MAX_OBS = 600
 
 
 def round_sig(x, digits: int = 9):
@@ -93,7 +104,7 @@ class OdRequest(BaseModel):
     prior_sigma_vel_m_s: float = Field(1.0, gt=0.0)
     ukf_prior: Literal["simulated", "iod"] = "simulated"
     iod_max_obs: int = Field(5, ge=3, le=12)
-    max_obs: int = Field(200, ge=1, le=2000)
+    max_obs: int = Field(200, ge=1, le=MAX_OBS, description="observations kept (evenly thinned) for the filters")
     respect_visibility: bool = True
     particles: Optional[ParticleOpts] = Field(default_factory=ParticleOpts)
     seed: int = 0
@@ -140,14 +151,35 @@ def od_run(req: OdRequest):
     try:
         sensors = resolve_sensors(req.sensors)
     except KeyError as e:
-        raise HTTPException(400, detail=str(e))
+        raise HTTPException(400, detail=err_detail(e))
     truth = cat.truth(req.object_id)
     params = EphemParams(srp=True, cr_area_mass=truth.params.cr_area_mass)
     rng = np.random.default_rng(int(req.seed))
+    caps: list[str] = []
+
+    # --- per-request budget (see the constants at the top) ---------------------------
+    grid = np.arange(t0_s, t1_s + 1e-6, req.cadence_min * 60.0)
+    n_evals = grid.size * len(sensors)
+    if n_evals > MAX_EPOCH_SENSOR_EVALS:
+        raise HTTPException(400, detail=f"{grid.size} epochs x {len(sensors)} sensors = {n_evals} visibility evaluations exceeds the "
+                                        f"per-request budget of {MAX_EPOCH_SENSOR_EVALS}; increase cadence_min, shorten the window or "
+                                        f"pick fewer sensors")
+    if req.particles is not None:
+        po = req.particles
+        n_frames = int(np.floor(po.t_grid_h / po.step_h + 1e-9)) + 1
+        if n_frames > MAX_PARTICLE_FRAMES:
+            step = po.t_grid_h / (MAX_PARTICLE_FRAMES - 1)
+            caps.append(f"particles.step_h {po.step_h:g} -> {step:.4g} h ({n_frames} frames > {MAX_PARTICLE_FRAMES})")
+            po.step_h = step
+            n_frames = MAX_PARTICLE_FRAMES
+        if n_frames * po.max_export > MAX_PARTICLE_POINTS:
+            new_export = max(10, MAX_PARTICLE_POINTS // n_frames)
+            caps.append(f"particles.max_export {po.max_export} -> {new_export} ({n_frames} frames x {po.max_export} > "
+                        f"{MAX_PARTICLE_POINTS} exported positions)")
+            po.max_export = new_export
 
     # 1. observations ------------------------------------------------------------
     t = time.perf_counter()
-    grid = np.arange(t0_s, t1_s + 1e-6, req.cadence_min * 60.0)
     obs = simulate_observations(req.object_id, sensors, grid, req.sigma_arcsec, rng, req.respect_visibility)
     if len(obs) > req.max_obs:
         keep = np.linspace(0, len(obs) - 1, req.max_obs).astype(int)
@@ -155,9 +187,12 @@ def od_run(req: OdRequest):
     else:
         obs_list = list(obs)
     timing["simulate_s"] = time.perf_counter() - t
+    t0_iso, t1_iso = tdb_s_to_utc_iso(t0_s)[0], tdb_s_to_utc_iso(t1_s)[0]
     out: dict = {
-        "object_id": req.object_id, "label": entry.label, "t0": tdb_s_to_utc_iso(t0_s)[0], "t1": tdb_s_to_utc_iso(t1_s)[0],
-        "sensors": [s.id for s in sensors], "method": req.method, "seed": req.seed,
+        "object_id": req.object_id, "label": entry.label, "t0": t0_iso, "t1": t1_iso, "t0_utc": t0_iso, "t1_utc": t1_iso,
+        "sensors": [s.id for s in sensors], "method": req.method, "seed": req.seed, "caps_applied": caps,
+        "limits": {"epoch_sensor_evals": MAX_EPOCH_SENSOR_EVALS, "particle_points": MAX_PARTICLE_POINTS,
+                   "particle_frames": MAX_PARTICLE_FRAMES, "max_obs": MAX_OBS},
         "observations": {"n_used": len(obs_list), **obs.summary(),
                          "dropped": obs.dropped[:500], "n_dropped": len(obs.dropped),
                          "measurements": [m.as_dict() for m in obs_list]},

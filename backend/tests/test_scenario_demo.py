@@ -12,7 +12,9 @@ from selene.scenario.demo import EXTRA_EVENT_KINDS, NO_SITE_AVAILABLE, PROTAGONI
 
 SPEC_KINDS = {"custody_nominal", "maneuver_detected", "custody_degraded", "custody_lost", "entered_region", "reachability_alert",
               "tasking_update", "observation", "custody_regained", "maneuver_characterised", "brief_ready"}
-REQUIRED_KINDS = tuple(sorted(SPEC_KINDS))
+# 'entered_region' is emitted only when the SIMULATED truth really enters a region (gateways are neck transits); the demo
+# truth grazes L1 without transiting, which the bundle reports as a 'closest_approach' event instead of inventing an entry
+REQUIRED_KINDS = tuple(sorted(SPEC_KINDS - {"entered_region"}))
 
 
 @pytest.fixture(scope="module")
@@ -40,18 +42,18 @@ def test_fast_build_time_and_shape(bundle):
     assert "SIMULATED" in meta["disclaimer"] and "notional actor" in meta["disclaimer"]
     # the window is what the frames span, and the playback compresses it into the scripted 2 minutes
     assert meta["duration_s"] == pytest.approx((len(bundle["frames"]) - 1) * meta["frame_dt_s"])
-    assert meta["duration_s"] == pytest.approx(bundle["frames"][-1]["t_s"])
+    assert meta["duration_s"] == pytest.approx(bundle["frames"][-1]["t_rel_s"])
     assert meta["playback_s"] == 120.0 and meta["playback_speed"] == pytest.approx(meta["duration_s"] / 120.0)
     t_prev = -1.0
     for fr in bundle["frames"]:
-        assert fr["t_s"] > t_prev and fr["t"] == fr["t_s"]
-        t_prev = fr["t_s"]
+        assert fr["t_rel_s"] > t_prev and fr["t"] == fr["t_rel_s"]
+        t_prev = fr["t_rel_s"]
         assert fr["t_utc"].endswith("Z")
         ids = {o["id"] for o in fr["objects"]}
         assert PROTAGONIST in ids and "SIM-NRHO-RELAY-01" in ids
         for o in fr["objects"]:
             assert o["custody"] in ("CUSTODY", "DEGRADED", "LOST") and o["custody_ui"] in ("held", "degraded", "lost")
-            assert len(o["pos_rot"]) == 3 and len(o["pos_gcrf"]) == 3 and o["sigma_km"] >= 0
+            assert len(o["pos_rot"]) == 3 and len(o["pos_gcrf_km"]) == 3 and o["sigma_km"] >= 0
             assert 0.3 < np.linalg.norm(o["pos_rot"]) < 3.0          # nondimensional, inside the cislunar volume
         assert fr["clouds"] and fr["clouds"][0]["object_id"] == PROTAGONIST
         pts = fr["clouds"][0]["points_rot"]
@@ -80,23 +82,23 @@ def test_event_kinds_and_story_order(bundle):
     extra = kinds - SPEC_KINDS
     assert extra <= set(EXTRA_EVENT_KINDS) and extra <= set(bundle["meta"]["extra_event_kinds"]), extra
     assert all(e["severity"] in ("info", "warn", "alert") for e in ev)
-    assert [e["t_s"] for e in ev] == sorted(e["t_s"] for e in ev)
-    t_burn = _first(ev, "maneuver")["t_s"]
-    t_det = _first(ev, "maneuver_detected")["t_s"]
-    t_lost = _first(ev, "custody_lost")["t_s"]
-    t_task = _first(ev, "tasking_update")["t_s"]
-    t_reg = _first(ev, "custody_regained")["t_s"]
-    t_char = _first(ev, "maneuver_characterised")["t_s"]
-    t_brief = _first(ev, "brief_ready")["t_s"]
+    assert [e["t_rel_s"] for e in ev] == sorted(e["t_rel_s"] for e in ev)
+    t_burn = _first(ev, "maneuver")["t_rel_s"]
+    t_det = _first(ev, "maneuver_detected")["t_rel_s"]
+    t_lost = _first(ev, "custody_lost")["t_rel_s"]
+    t_task = _first(ev, "tasking_update")["t_rel_s"]
+    t_reg = _first(ev, "custody_regained")["t_rel_s"]
+    t_char = _first(ev, "maneuver_characterised")["t_rel_s"]
+    t_brief = _first(ev, "brief_ready")["t_rel_s"]
     assert t_burn < t_det <= t_lost < t_task <= t_reg < t_char < t_brief
-    assert t_det <= _first(ev, "reachability_alert")["t_s"] <= t_task
+    assert t_det <= _first(ev, "reachability_alert")["t_rel_s"] <= t_task
     m = bundle["metrics"]
     assert m["detection_latency_h"] == pytest.approx((t_det - t_burn) / 3600.0, abs=1e-6)
     # the DEGRADED event sits on the status change itself (metrics agree), not on the first ground-blind frame
-    assert _first(ev, "custody_degraded")["t_s"] == pytest.approx(m["t_degraded_s"])
+    assert _first(ev, "custody_degraded")["t_rel_s"] == pytest.approx(m["t_degraded_rel_s"])
     # same-epoch ordering in the feed is narrative: the tasking update precedes any tracklet it produced, the
     # re-acquisition tracklet precedes the custody-regained verdict
-    at_task = [(i, e) for i, e in enumerate(ev) if e["t_s"] == t_task]
+    at_task = [(i, e) for i, e in enumerate(ev) if e["t_rel_s"] == t_task]
     i_task = next(i for i, e in at_task if e["kind"] == "tasking_update")
     i_reacq = next(i for i, e in at_task if e["kind"] == "observation" and e["data"].get("reacquired"))
     assert all(i > i_task for i, e in at_task if e["kind"] == "observation"), "no tracklet before the tasking update at the same epoch"
@@ -136,10 +138,10 @@ def test_ground_loss_attribution_is_per_site_honest(bundle):
 def test_sigma_grows_after_loss_and_drops_after_regain(bundle):
     m = bundle["metrics"]
     sig = np.array([s["sigma_km"] for s in m["sigma_timeline"]])
-    t = np.array([s["t_s"] for s in m["sigma_timeline"]])
-    t_det, t_lost, t_reg = m["t_detect_s"], m["t_lost_s"], m["t_regained_s"]
+    t = np.array([s["t_rel_s"] for s in m["sigma_timeline"]])
+    t_det, t_lost, t_reg = m["t_detect_rel_s"], m["t_lost_rel_s"], m["t_regained_rel_s"]
     assert t_lost is not None and t_reg is not None
-    pre = sig[t < m["t_burn_s"]]
+    pre = sig[t < m["t_burn_rel_s"]]
     between = sig[(t >= t_det) & (t <= t_lost)]
     after = sig[t > t_reg]
     assert pre.max() < m["filter"]["custody_km"]
@@ -161,7 +163,7 @@ def test_tasking_pointing_and_search_budget_are_consistent(bundle):
     budget = tk["search_tiles_used_by_scheduler"]
     assert budget == bundle["meta"]["search_fields_per_slot"] >= 1
     assert tk["sensor_ids"], "re-acquisition must have happened"
-    k = int(round(tk["t_task_s"] / bundle["meta"]["frame_dt_s"]))
+    k = int(round(tk["t_task_rel_s"] / bundle["meta"]["frame_dt_s"]))
     fr = bundle["frames"][k]
     truth = {o["id"]: np.array(o["pos_rot"]) for o in fr["objects"]}[PROTAGONIST]
     sens = {s["id"]: s for s in fr["sensors"]}
@@ -203,19 +205,43 @@ def test_reachability_block_is_honest(bundle):
     keys = {x["key"] for x in r["regions"]}
     assert {"l1_gateway", "l2_gateway", "nrho_corridor", "south_pole_approach", "geo_belt_return", "lunar_impact"} <= keys
     l1 = next(x for x in r["regions"] if x["key"] == "l1_gateway")
-    assert l1["nominal_hits"] is True and l1["min_dv_mps"] == 0.0     # the unperturbed DRO already threads the L1 sphere
-    # the no-burn entry time is the nominal path's own, not the earliest over the burned rays
-    assert l1["earliest_nominal_h"] is not None and l1["earliest_nominal_h"] >= l1["earliest_h"]
+    l2 = next(x for x in r["regions"] if x["key"] == "l2_gateway")
+    # gateways are neck TRANSITS (regions.py): the quiet DRO grazes both L1 and L2 every revolution without changing
+    # realm, so neither is on the nominal path; what the burn opens is reported with a positive minimum delta-v
+    assert l1["nominal_hits"] is False and l2["nominal_hits"] is False
+    assert l1["n_hit"] > 0 and l1["newly_reachable"] and l1["min_dv_mps"] > 0 and l1["earliest_h"] is not None
     tg = bundle["metrics"]["truth_geometry"]
-    t_l1_truth = next(en for en in tg["region_entries"] if en["key"] == "l1_gateway")["t_s"]
-    t_ref = next(e for e in bundle["events"] if e["kind"] == "maneuver_detected")  # noqa: F841 - documents the reference
+    # the SIMULATED truth grazes L1 (closest approach refined on the dense solution, well below the hourly-grid value)
+    # but stays in the lunar realm: no gateway entry is claimed for it, and the bundle says so explicitly
+    assert tg["l1_transit"] is False
+    assert 100.0 < tg["min_dist_to_L1_km"] < 1000.0 and tg["min_dist_to_L1_km"] <= tg["min_dist_to_L1_grid_km"]
+    assert tg["min_dist_to_L1_unperturbed_km"] > tg["min_dist_to_L1_km"]
+    assert not any(en["key"] in ("l1_gateway", "l2_gateway") for en in tg["region_entries"])
+    ca = _first(bundle["events"], "closest_approach")
+    assert ca["data"]["transit"] is False and "does NOT transit" in ca["text"] and f"{tg['min_dist_to_L1_km']:,.0f} km" in ca["text"]
     assert r["dv_budget_mps"] == 100.0 and r["horizon_h"] == 168.0
-    txt = _first(bundle["events"], "reachability_alert")["text"]
-    assert f"+{l1['earliest_nominal_h']:.0f} h with no burn" in txt
+    alert = _first(bundle["events"], "reachability_alert")
+    txt = alert["text"]
+    # the headline lists only regions the burn OPENS; routine geometry of the unperturbed orbit is never flagged as new
+    assert "could newly enter" in txt and "L1 gateway" in txt and f">= {l1['min_dv_mps']:.0f} m/s" in txt
+    assert "l1_gateway" in alert["data"]["newly_reachable"] and alert["data"]["on_unperturbed_path"] == []
     assert "awareness" in txt.lower() and "intent" not in txt.lower().replace("no intent", "")
     # the relay-corridor sentence never flips meaning with the sampling: both 0 and a few rays read as marginal
     assert "sampling resolution" in txt and "no closer approach is implied" in txt
-    assert isinstance(t_l1_truth, float)
+    # one definition of sigma at detection everywhere: metrics == frame == degraded event text
+    m = bundle["metrics"]
+    k_det = int(round(m["t_detect_rel_s"] / bundle["meta"]["frame_dt_s"]))
+    prot = next(o for o in bundle["frames"][k_det]["objects"] if o["id"] == PROTAGONIST)
+    assert m["sigma_at_detection_km"] == pytest.approx(prot["sigma_km"], abs=0.1)
+    deg = _first(bundle["events"], "custody_degraded")
+    assert f"sigma_pos {m['sigma_at_detection_km']:.0f} km" in deg["text"] or deg["t_rel_s"] != m["t_detect_rel_s"]
+    assert m["ukf_sigma_at_detection_km"] > 0 and "particle-cloud" in m["sigma_at_detection_definition"]
+    # the characterised direction is frame-tagged and in GCRF like the truth direction
+    ch = _first(bundle["events"], "maneuver_characterised")
+    assert ch["data"]["direction_frame"] == "gcrf" and len(ch["data"]["direction_rot"]) == 3
+    cosang = float(np.dot(ch["data"]["direction"], m["dv_true_dir_gcrf"]))
+    assert np.degrees(np.arccos(np.clip(cosang, -1, 1))) < 5.0
+    assert bundle["meta"]["time_fields"]["t"].startswith("seconds since")
 
 
 def test_brief_contents(bundle):
@@ -232,7 +258,10 @@ def test_brief_contents(bundle):
     assert f"{loss['n_frames_available_site_blocked_after_detection']} of the {loss['n_blind_frames_after_detection']} blind hours" in b
     assert "not a glare effect" in b and "sampling resolution" in b
     l1 = next(x for x in m["reachability"]["regions"] if x["key"] == "l1_gateway")
-    assert f"first entry +{l1['earliest_nominal_h']:.0f} h with no burn" in b
+    assert f"minimum Δv to reach ≈ {l1['min_dv_mps']:.0f} m/s" in b
+    tg = m["truth_geometry"]
+    assert f"passes {tg['min_dist_to_L1_km']:,.0f} km from L1" in b and "does NOT transit the L1 neck" in b
+    assert "## Terms used below" in b and "**tracklet**" in b and b.index("**RTN**") < b.index("## Timeline (UTC)")
     for bad in ("target", "engage", "strike", "intercept"):
         assert bad not in b.lower()
     # deterministic from the metrics

@@ -47,11 +47,14 @@ def test_default_request_shape_and_timing(client):
     assert len(d["nominal"]["rot"]) == len(d["nominal"]["t_h"])
     reg = {x["key"]: x for x in d["regions"]}
     assert set(reg) >= {"l1_gateway", "l2_gateway", "nrho_corridor", "geo_belt_return"}
-    # with the week-scale default the demo table is not empty: L2 is on the nominal path (min_dv 0),
-    # L1 and the NRHO corridor open up with 50 m/s
-    assert reg["l2_gateway"]["nominal_hits"] and reg["l2_gateway"]["min_dv_mps"] == 0.0
-    assert reg["l1_gateway"]["newly_reachable"] and reg["l1_gateway"]["min_dv_mps"] > 0
-    assert reg["l1_gateway"]["refined_min_dv"]["dv_mps"] <= reg["l1_gateway"]["min_dv_mps"]
+    # gateways are NECK TRANSITS (regions.py): the quiet DRO sweeps through both L1/L2 balls every revolution but
+    # never changes realm, so neither gateway is on the nominal path; with the week-scale default and 50 m/s the
+    # L2 neck opens (a few rays, min_dv > 0) and the alert carries information instead of flagging routine geometry
+    assert not reg["l1_gateway"]["nominal_hits"] and not reg["l2_gateway"]["nominal_hits"]
+    assert "l1_gateway" not in d["nominal"]["hit_regions"] and "l2_gateway" not in d["nominal"]["hit_regions"]
+    assert reg["l2_gateway"]["newly_reachable"] and reg["l2_gateway"]["min_dv_mps"] > 0
+    assert reg["l2_gateway"]["refined_min_dv"]["dv_mps"] <= reg["l2_gateway"]["min_dv_mps"]
+    assert d["config"]["caps_applied"] == []
     for x in reg.values():
         assert 0.0 <= x["fraction"] <= 1.0 and 0.0 <= x["sample_fraction"] <= 1.0
         if x["n_hit"] == 0 and not x["nominal_hits"]:

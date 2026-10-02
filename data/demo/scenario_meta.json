@@ -13,7 +13,7 @@
   "fast": false,
   "seed": 0,
   "epoch_choice_rationale": "Window 2026-02-23 .. 2026-03-01 UTC (6 days, hourly frames) inside the cached DE440s/Horizons span. Scanning the span with the real visibility model: SIM-DRO-01 stays within ~12 deg of the Moon on the sky, so under the phase-dependent lunar-glare exclusion (3 deg at new Moon to 15 deg at full Moon) the nine ground sites can only track it on the nights of Feb 23-25 (Moon 33-60 % illuminated, exclusion 7-10 deg, object 10-11 deg from the Moon) and are blind from Feb 25 ~11 UTC through full Moon (Mar 3). The burn is placed 30 min after the last pre-burn ground tracklet so that exactly one post-burn ground observation catches the anomaly before the glare closes the window; the loss is therefore computed, not scripted. Known fragility: that tracklet clears the assumed phase-dependent glare cone by only ~0.1 deg, so a different glare parameterisation or a 30-min epoch shift leaves no post-burn ground observation and the builder raises instead of inventing a detection.",
-  "burn_rationale": "30 m/s (assumed, inside the 20-40 m/s class) at 2026-02-25T08:30Z. Direction: of 256 Fibonacci-sampled 30 m/s burn directions propagated with the reachability engine, the one whose coasting arc passes closest to the Earth-Moon L1 point (~510 km at +41.5 h vs ~4 200 km for the unperturbed DRO). The notional actor's intent is never inferred.",
+  "burn_rationale": "30 m/s (assumed, inside the 20-40 m/s class) at 2026-02-25T08:30Z. Direction: of 256 Fibonacci-sampled 30 m/s burn directions propagated with the reachability engine, the one whose coasting arc passes closest to the Earth-Moon L1 point (260 km at +41.7 h after the burn, refined on the dense solution, vs 4,098 km for the unperturbed DRO in this window). The burned arc does not transit the L1 neck (it grazes L1 and stays in the lunar realm), which the bundle states explicitly. The notional actor's intent is never inferred.",
   "assumptions": [
    "All sensors are notional (assumed representative specs); astrometric noise 1 arcsec (1-sigma, isotropic on-sky).",
    "Routine custody: one ground tracklet every 2 h when any site can see the object; space observers are allocated to the libration-point objects until the tasker escalates.",
@@ -41,13 +41,20 @@
    "tasker: 88 protagonist assignments in segment B (search_tiles=25, gain=logdet)",
    "re-acquisition: OK by geo_west,geo_east,l1_halo_obs,dro_obs,nrho_obs (5 looks verified), 38 space tracklets"
   ],
+  "time_fields": {
+   "t": "seconds since meta.t0_utc (frontend contract)",
+   "t_rel_s": "same as t",
+   "t_utc": "ISO-8601 UTC with Z",
+   "*_rel_s": "metrics: seconds since meta.t0_utc",
+   "t_s": "absolute TDB seconds past J2000 (same meaning as in every other API route)"
+  },
   "event_kinds": [
    "brief_ready",
+   "closest_approach",
    "custody_degraded",
    "custody_lost",
    "custody_nominal",
    "custody_regained",
-   "entered_region",
    "maneuver",
    "maneuver_characterised",
    "maneuver_detected",
@@ -56,1334 +63,1342 @@
    "tasking_update"
   ],
   "extra_event_kinds": {
-   "maneuver": "SIMULATED-truth marker of the burn itself (never visible to the operator at that instant)"
+   "maneuver": "SIMULATED-truth marker of the burn itself (never visible to the operator at that instant)",
+   "closest_approach": "SIMULATED-truth marker of the closest approach to L1 (a graze, not a neck transit)"
   },
   "search_fields_per_slot": 25,
-  "brief_generated_utc": "2026-10-02T14:52:51Z",
+  "brief_generated_utc": "2026-10-02T15:37:05Z",
   "timing_s": {
-   "truth_s": 0.36,
-   "ground_obs_s": 0.78,
-   "ukf1_detect_s": 0.29,
-   "reachability_s": 0.6,
+   "truth_s": 0.32,
+   "ground_obs_s": 0.72,
+   "ukf1_detect_s": 0.28,
+   "reachability_s": 0.69,
    "decay_s": 0.03,
-   "tasking_s": 1.54,
+   "tasking_s": 1.45,
    "reacq_s": 0.03,
    "ukf2_detect_s": 0.02,
-   "dv_estimate_s": 0.25,
-   "clouds_s": 0.56,
-   "frames_s": 0.19,
-   "total_s": 4.69
+   "dv_estimate_s": 0.24,
+   "clouds_s": 0.45,
+   "frames_s": 0.18,
+   "total_s": 4.45
   }
  },
  "metrics": {
   "protagonist": "SIM-DRO-01",
   "relay": "SIM-NRHO-RELAY-01",
+  "time_fields": {
+   "t": "seconds since meta.t0_utc (frontend contract)",
+   "t_rel_s": "same as t",
+   "t_utc": "ISO-8601 UTC with Z",
+   "*_rel_s": "metrics: seconds since meta.t0_utc",
+   "t_s": "absolute TDB seconds past J2000 (same meaning as in every other API route)"
+  },
   "custody_timeline": [
    {
-    "t_s": 0.0,
+    "t_rel_s": 0.0,
     "t_utc": "2026-02-23T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 3600.0,
+    "t_rel_s": 3600.0,
     "t_utc": "2026-02-23T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 7200.0,
+    "t_rel_s": 7200.0,
     "t_utc": "2026-02-23T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 10800.0,
+    "t_rel_s": 10800.0,
     "t_utc": "2026-02-23T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 14400.0,
+    "t_rel_s": 14400.0,
     "t_utc": "2026-02-23T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 18000.0,
+    "t_rel_s": 18000.0,
     "t_utc": "2026-02-23T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 21600.0,
+    "t_rel_s": 21600.0,
     "t_utc": "2026-02-23T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 25200.0,
+    "t_rel_s": 25200.0,
     "t_utc": "2026-02-23T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 28800.0,
+    "t_rel_s": 28800.0,
     "t_utc": "2026-02-23T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 32400.0,
+    "t_rel_s": 32400.0,
     "t_utc": "2026-02-23T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 36000.0,
+    "t_rel_s": 36000.0,
     "t_utc": "2026-02-23T10:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 39600.0,
+    "t_rel_s": 39600.0,
     "t_utc": "2026-02-23T11:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 43200.0,
+    "t_rel_s": 43200.0,
     "t_utc": "2026-02-23T12:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 46800.0,
+    "t_rel_s": 46800.0,
     "t_utc": "2026-02-23T13:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 50400.0,
+    "t_rel_s": 50400.0,
     "t_utc": "2026-02-23T14:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 54000.0,
+    "t_rel_s": 54000.0,
     "t_utc": "2026-02-23T15:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 57600.0,
+    "t_rel_s": 57600.0,
     "t_utc": "2026-02-23T16:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 61200.0,
+    "t_rel_s": 61200.0,
     "t_utc": "2026-02-23T17:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 64800.0,
+    "t_rel_s": 64800.0,
     "t_utc": "2026-02-23T18:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 68400.0,
+    "t_rel_s": 68400.0,
     "t_utc": "2026-02-23T19:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 72000.0,
+    "t_rel_s": 72000.0,
     "t_utc": "2026-02-23T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 75600.0,
+    "t_rel_s": 75600.0,
     "t_utc": "2026-02-23T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 79200.0,
+    "t_rel_s": 79200.0,
     "t_utc": "2026-02-23T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 82800.0,
+    "t_rel_s": 82800.0,
     "t_utc": "2026-02-23T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 86400.0,
+    "t_rel_s": 86400.0,
     "t_utc": "2026-02-24T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 90000.0,
+    "t_rel_s": 90000.0,
     "t_utc": "2026-02-24T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 93600.0,
+    "t_rel_s": 93600.0,
     "t_utc": "2026-02-24T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 97200.0,
+    "t_rel_s": 97200.0,
     "t_utc": "2026-02-24T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 100800.0,
+    "t_rel_s": 100800.0,
     "t_utc": "2026-02-24T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 104400.0,
+    "t_rel_s": 104400.0,
     "t_utc": "2026-02-24T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 108000.0,
+    "t_rel_s": 108000.0,
     "t_utc": "2026-02-24T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 111600.0,
+    "t_rel_s": 111600.0,
     "t_utc": "2026-02-24T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 115200.0,
+    "t_rel_s": 115200.0,
     "t_utc": "2026-02-24T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 118800.0,
+    "t_rel_s": 118800.0,
     "t_utc": "2026-02-24T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 122400.0,
+    "t_rel_s": 122400.0,
     "t_utc": "2026-02-24T10:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 126000.0,
+    "t_rel_s": 126000.0,
     "t_utc": "2026-02-24T11:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 129600.0,
+    "t_rel_s": 129600.0,
     "t_utc": "2026-02-24T12:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 133200.0,
+    "t_rel_s": 133200.0,
     "t_utc": "2026-02-24T13:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 136800.0,
+    "t_rel_s": 136800.0,
     "t_utc": "2026-02-24T14:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 140400.0,
+    "t_rel_s": 140400.0,
     "t_utc": "2026-02-24T15:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 144000.0,
+    "t_rel_s": 144000.0,
     "t_utc": "2026-02-24T16:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 147600.0,
+    "t_rel_s": 147600.0,
     "t_utc": "2026-02-24T17:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 151200.0,
+    "t_rel_s": 151200.0,
     "t_utc": "2026-02-24T18:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 154800.0,
+    "t_rel_s": 154800.0,
     "t_utc": "2026-02-24T19:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 158400.0,
+    "t_rel_s": 158400.0,
     "t_utc": "2026-02-24T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 162000.0,
+    "t_rel_s": 162000.0,
     "t_utc": "2026-02-24T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 165600.0,
+    "t_rel_s": 165600.0,
     "t_utc": "2026-02-24T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 169200.0,
+    "t_rel_s": 169200.0,
     "t_utc": "2026-02-24T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 172800.0,
+    "t_rel_s": 172800.0,
     "t_utc": "2026-02-25T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 176400.0,
+    "t_rel_s": 176400.0,
     "t_utc": "2026-02-25T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 180000.0,
+    "t_rel_s": 180000.0,
     "t_utc": "2026-02-25T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 183600.0,
+    "t_rel_s": 183600.0,
     "t_utc": "2026-02-25T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 187200.0,
+    "t_rel_s": 187200.0,
     "t_utc": "2026-02-25T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 190800.0,
+    "t_rel_s": 190800.0,
     "t_utc": "2026-02-25T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 194400.0,
+    "t_rel_s": 194400.0,
     "t_utc": "2026-02-25T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 198000.0,
+    "t_rel_s": 198000.0,
     "t_utc": "2026-02-25T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 201600.0,
+    "t_rel_s": 201600.0,
     "t_utc": "2026-02-25T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 205200.0,
+    "t_rel_s": 205200.0,
     "t_utc": "2026-02-25T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 208800.0,
+    "t_rel_s": 208800.0,
     "t_utc": "2026-02-25T10:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 212400.0,
+    "t_rel_s": 212400.0,
     "t_utc": "2026-02-25T11:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 216000.0,
+    "t_rel_s": 216000.0,
     "t_utc": "2026-02-25T12:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 219600.0,
+    "t_rel_s": 219600.0,
     "t_utc": "2026-02-25T13:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 223200.0,
+    "t_rel_s": 223200.0,
     "t_utc": "2026-02-25T14:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 226800.0,
+    "t_rel_s": 226800.0,
     "t_utc": "2026-02-25T15:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 230400.0,
+    "t_rel_s": 230400.0,
     "t_utc": "2026-02-25T16:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 234000.0,
+    "t_rel_s": 234000.0,
     "t_utc": "2026-02-25T17:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 237600.0,
+    "t_rel_s": 237600.0,
     "t_utc": "2026-02-25T18:00:00Z",
     "status": "DEGRADED"
    },
    {
-    "t_s": 241200.0,
+    "t_rel_s": 241200.0,
     "t_utc": "2026-02-25T19:00:00Z",
     "status": "LOST"
    },
    {
-    "t_s": 244800.0,
+    "t_rel_s": 244800.0,
     "t_utc": "2026-02-25T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 248400.0,
+    "t_rel_s": 248400.0,
     "t_utc": "2026-02-25T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 252000.0,
+    "t_rel_s": 252000.0,
     "t_utc": "2026-02-25T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 255600.0,
+    "t_rel_s": 255600.0,
     "t_utc": "2026-02-25T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 259200.0,
+    "t_rel_s": 259200.0,
     "t_utc": "2026-02-26T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 262800.0,
+    "t_rel_s": 262800.0,
     "t_utc": "2026-02-26T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 266400.0,
+    "t_rel_s": 266400.0,
     "t_utc": "2026-02-26T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 270000.0,
+    "t_rel_s": 270000.0,
     "t_utc": "2026-02-26T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 273600.0,
+    "t_rel_s": 273600.0,
     "t_utc": "2026-02-26T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 277200.0,
+    "t_rel_s": 277200.0,
     "t_utc": "2026-02-26T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 280800.0,
+    "t_rel_s": 280800.0,
     "t_utc": "2026-02-26T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 284400.0,
+    "t_rel_s": 284400.0,
     "t_utc": "2026-02-26T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 288000.0,
+    "t_rel_s": 288000.0,
     "t_utc": "2026-02-26T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 291600.0,
+    "t_rel_s": 291600.0,
     "t_utc": "2026-02-26T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 295200.0,
+    "t_rel_s": 295200.0,
     "t_utc": "2026-02-26T10:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 298800.0,
+    "t_rel_s": 298800.0,
     "t_utc": "2026-02-26T11:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 302400.0,
+    "t_rel_s": 302400.0,
     "t_utc": "2026-02-26T12:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 306000.0,
+    "t_rel_s": 306000.0,
     "t_utc": "2026-02-26T13:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 309600.0,
+    "t_rel_s": 309600.0,
     "t_utc": "2026-02-26T14:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 313200.0,
+    "t_rel_s": 313200.0,
     "t_utc": "2026-02-26T15:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 316800.0,
+    "t_rel_s": 316800.0,
     "t_utc": "2026-02-26T16:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 320400.0,
+    "t_rel_s": 320400.0,
     "t_utc": "2026-02-26T17:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 324000.0,
+    "t_rel_s": 324000.0,
     "t_utc": "2026-02-26T18:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 327600.0,
+    "t_rel_s": 327600.0,
     "t_utc": "2026-02-26T19:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 331200.0,
+    "t_rel_s": 331200.0,
     "t_utc": "2026-02-26T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 334800.0,
+    "t_rel_s": 334800.0,
     "t_utc": "2026-02-26T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 338400.0,
+    "t_rel_s": 338400.0,
     "t_utc": "2026-02-26T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 342000.0,
+    "t_rel_s": 342000.0,
     "t_utc": "2026-02-26T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 345600.0,
+    "t_rel_s": 345600.0,
     "t_utc": "2026-02-27T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 349200.0,
+    "t_rel_s": 349200.0,
     "t_utc": "2026-02-27T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 352800.0,
+    "t_rel_s": 352800.0,
     "t_utc": "2026-02-27T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 356400.0,
+    "t_rel_s": 356400.0,
     "t_utc": "2026-02-27T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 360000.0,
+    "t_rel_s": 360000.0,
     "t_utc": "2026-02-27T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 363600.0,
+    "t_rel_s": 363600.0,
     "t_utc": "2026-02-27T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 367200.0,
+    "t_rel_s": 367200.0,
     "t_utc": "2026-02-27T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 370800.0,
+    "t_rel_s": 370800.0,
     "t_utc": "2026-02-27T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 374400.0,
+    "t_rel_s": 374400.0,
     "t_utc": "2026-02-27T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 378000.0,
+    "t_rel_s": 378000.0,
     "t_utc": "2026-02-27T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 381600.0,
+    "t_rel_s": 381600.0,
     "t_utc": "2026-02-27T10:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 385200.0,
+    "t_rel_s": 385200.0,
     "t_utc": "2026-02-27T11:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 388800.0,
+    "t_rel_s": 388800.0,
     "t_utc": "2026-02-27T12:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 392400.0,
+    "t_rel_s": 392400.0,
     "t_utc": "2026-02-27T13:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 396000.0,
+    "t_rel_s": 396000.0,
     "t_utc": "2026-02-27T14:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 399600.0,
+    "t_rel_s": 399600.0,
     "t_utc": "2026-02-27T15:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 403200.0,
+    "t_rel_s": 403200.0,
     "t_utc": "2026-02-27T16:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 406800.0,
+    "t_rel_s": 406800.0,
     "t_utc": "2026-02-27T17:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 410400.0,
+    "t_rel_s": 410400.0,
     "t_utc": "2026-02-27T18:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 414000.0,
+    "t_rel_s": 414000.0,
     "t_utc": "2026-02-27T19:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 417600.0,
+    "t_rel_s": 417600.0,
     "t_utc": "2026-02-27T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 421200.0,
+    "t_rel_s": 421200.0,
     "t_utc": "2026-02-27T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 424800.0,
+    "t_rel_s": 424800.0,
     "t_utc": "2026-02-27T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 428400.0,
+    "t_rel_s": 428400.0,
     "t_utc": "2026-02-27T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 432000.0,
+    "t_rel_s": 432000.0,
     "t_utc": "2026-02-28T00:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 435600.0,
+    "t_rel_s": 435600.0,
     "t_utc": "2026-02-28T01:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 439200.0,
+    "t_rel_s": 439200.0,
     "t_utc": "2026-02-28T02:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 442800.0,
+    "t_rel_s": 442800.0,
     "t_utc": "2026-02-28T03:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 446400.0,
+    "t_rel_s": 446400.0,
     "t_utc": "2026-02-28T04:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 450000.0,
+    "t_rel_s": 450000.0,
     "t_utc": "2026-02-28T05:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 453600.0,
+    "t_rel_s": 453600.0,
     "t_utc": "2026-02-28T06:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 457200.0,
+    "t_rel_s": 457200.0,
     "t_utc": "2026-02-28T07:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 460800.0,
+    "t_rel_s": 460800.0,
     "t_utc": "2026-02-28T08:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 464400.0,
+    "t_rel_s": 464400.0,
     "t_utc": "2026-02-28T09:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 468000.0,
+    "t_rel_s": 468000.0,
     "t_utc": "2026-02-28T10:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 471600.0,
+    "t_rel_s": 471600.0,
     "t_utc": "2026-02-28T11:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 475200.0,
+    "t_rel_s": 475200.0,
     "t_utc": "2026-02-28T12:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 478800.0,
+    "t_rel_s": 478800.0,
     "t_utc": "2026-02-28T13:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 482400.0,
+    "t_rel_s": 482400.0,
     "t_utc": "2026-02-28T14:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 486000.0,
+    "t_rel_s": 486000.0,
     "t_utc": "2026-02-28T15:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 489600.0,
+    "t_rel_s": 489600.0,
     "t_utc": "2026-02-28T16:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 493200.0,
+    "t_rel_s": 493200.0,
     "t_utc": "2026-02-28T17:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 496800.0,
+    "t_rel_s": 496800.0,
     "t_utc": "2026-02-28T18:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 500400.0,
+    "t_rel_s": 500400.0,
     "t_utc": "2026-02-28T19:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 504000.0,
+    "t_rel_s": 504000.0,
     "t_utc": "2026-02-28T20:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 507600.0,
+    "t_rel_s": 507600.0,
     "t_utc": "2026-02-28T21:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 511200.0,
+    "t_rel_s": 511200.0,
     "t_utc": "2026-02-28T22:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 514800.0,
+    "t_rel_s": 514800.0,
     "t_utc": "2026-02-28T23:00:00Z",
     "status": "CUSTODY"
    },
    {
-    "t_s": 518400.0,
+    "t_rel_s": 518400.0,
     "t_utc": "2026-03-01T00:00:00Z",
     "status": "CUSTODY"
    }
   ],
   "sigma_timeline": [
    {
-    "t_s": 0.0,
+    "t_rel_s": 0.0,
     "sigma_km": 8.81
    },
    {
-    "t_s": 3600.0,
+    "t_rel_s": 3600.0,
     "sigma_km": 8.91
    },
    {
-    "t_s": 7200.0,
+    "t_rel_s": 7200.0,
     "sigma_km": 9.18
    },
    {
-    "t_s": 10800.0,
+    "t_rel_s": 10800.0,
     "sigma_km": 9.61
    },
    {
-    "t_s": 14400.0,
+    "t_rel_s": 14400.0,
     "sigma_km": 10.16
    },
    {
-    "t_s": 18000.0,
+    "t_rel_s": 18000.0,
     "sigma_km": 10.83
    },
    {
-    "t_s": 21600.0,
+    "t_rel_s": 21600.0,
     "sigma_km": 7.17
    },
    {
-    "t_s": 25200.0,
+    "t_rel_s": 25200.0,
     "sigma_km": 7.76
    },
    {
-    "t_s": 28800.0,
+    "t_rel_s": 28800.0,
     "sigma_km": 8.45
    },
    {
-    "t_s": 32400.0,
+    "t_rel_s": 32400.0,
     "sigma_km": 9.22
    },
    {
-    "t_s": 36000.0,
+    "t_rel_s": 36000.0,
     "sigma_km": 10.04
    },
    {
-    "t_s": 39600.0,
+    "t_rel_s": 39600.0,
     "sigma_km": 10.91
    },
    {
-    "t_s": 43200.0,
+    "t_rel_s": 43200.0,
     "sigma_km": 11.82
    },
    {
-    "t_s": 46800.0,
+    "t_rel_s": 46800.0,
     "sigma_km": 12.75
    },
    {
-    "t_s": 50400.0,
+    "t_rel_s": 50400.0,
     "sigma_km": 13.71
    },
    {
-    "t_s": 54000.0,
+    "t_rel_s": 54000.0,
     "sigma_km": 14.68
    },
    {
-    "t_s": 57600.0,
+    "t_rel_s": 57600.0,
     "sigma_km": 15.67
    },
    {
-    "t_s": 61200.0,
+    "t_rel_s": 61200.0,
     "sigma_km": 16.67
    },
    {
-    "t_s": 64800.0,
+    "t_rel_s": 64800.0,
     "sigma_km": 17.69
    },
    {
-    "t_s": 68400.0,
+    "t_rel_s": 68400.0,
     "sigma_km": 18.71
    },
    {
-    "t_s": 72000.0,
+    "t_rel_s": 72000.0,
     "sigma_km": 15.37
    },
    {
-    "t_s": 75600.0,
+    "t_rel_s": 75600.0,
     "sigma_km": 16.09
    },
    {
-    "t_s": 79200.0,
+    "t_rel_s": 79200.0,
     "sigma_km": 16.25
    },
    {
-    "t_s": 82800.0,
+    "t_rel_s": 82800.0,
     "sigma_km": 16.94
    },
    {
-    "t_s": 86400.0,
+    "t_rel_s": 86400.0,
     "sigma_km": 17.64
    },
    {
-    "t_s": 90000.0,
+    "t_rel_s": 90000.0,
     "sigma_km": 18.34
    },
    {
-    "t_s": 93600.0,
+    "t_rel_s": 93600.0,
     "sigma_km": 18.2
    },
    {
-    "t_s": 97200.0,
+    "t_rel_s": 97200.0,
     "sigma_km": 18.87
    },
    {
-    "t_s": 100800.0,
+    "t_rel_s": 100800.0,
     "sigma_km": 19.02
    },
    {
-    "t_s": 104400.0,
+    "t_rel_s": 104400.0,
     "sigma_km": 19.67
    },
    {
-    "t_s": 108000.0,
+    "t_rel_s": 108000.0,
     "sigma_km": 18.14
    },
    {
-    "t_s": 111600.0,
+    "t_rel_s": 111600.0,
     "sigma_km": 18.74
    },
    {
-    "t_s": 115200.0,
+    "t_rel_s": 115200.0,
     "sigma_km": 18.46
    },
    {
-    "t_s": 118800.0,
+    "t_rel_s": 118800.0,
     "sigma_km": 19.03
    },
    {
-    "t_s": 122400.0,
+    "t_rel_s": 122400.0,
     "sigma_km": 17.38
    },
    {
-    "t_s": 126000.0,
+    "t_rel_s": 126000.0,
     "sigma_km": 17.88
    },
    {
-    "t_s": 129600.0,
+    "t_rel_s": 129600.0,
     "sigma_km": 18.39
    },
    {
-    "t_s": 133200.0,
+    "t_rel_s": 133200.0,
     "sigma_km": 18.9
    },
    {
-    "t_s": 136800.0,
+    "t_rel_s": 136800.0,
     "sigma_km": 19.41
    },
    {
-    "t_s": 140400.0,
+    "t_rel_s": 140400.0,
     "sigma_km": 19.92
    },
    {
-    "t_s": 144000.0,
+    "t_rel_s": 144000.0,
     "sigma_km": 15.44
    },
    {
-    "t_s": 147600.0,
+    "t_rel_s": 147600.0,
     "sigma_km": 15.82
    },
    {
-    "t_s": 151200.0,
+    "t_rel_s": 151200.0,
     "sigma_km": 16.21
    },
    {
-    "t_s": 154800.0,
+    "t_rel_s": 154800.0,
     "sigma_km": 16.6
    },
    {
-    "t_s": 158400.0,
+    "t_rel_s": 158400.0,
     "sigma_km": 13.79
    },
    {
-    "t_s": 162000.0,
+    "t_rel_s": 162000.0,
     "sigma_km": 14.1
    },
    {
-    "t_s": 165600.0,
+    "t_rel_s": 165600.0,
     "sigma_km": 12.01
    },
    {
-    "t_s": 169200.0,
+    "t_rel_s": 169200.0,
     "sigma_km": 12.28
    },
    {
-    "t_s": 172800.0,
+    "t_rel_s": 172800.0,
     "sigma_km": 12.54
    },
    {
-    "t_s": 176400.0,
+    "t_rel_s": 176400.0,
     "sigma_km": 12.81
    },
    {
-    "t_s": 180000.0,
+    "t_rel_s": 180000.0,
     "sigma_km": 11.63
    },
    {
-    "t_s": 183600.0,
+    "t_rel_s": 183600.0,
     "sigma_km": 11.86
    },
    {
-    "t_s": 187200.0,
+    "t_rel_s": 187200.0,
     "sigma_km": 10.52
    },
    {
-    "t_s": 190800.0,
+    "t_rel_s": 190800.0,
     "sigma_km": 10.73
    },
    {
-    "t_s": 194400.0,
+    "t_rel_s": 194400.0,
     "sigma_km": 10.09
    },
    {
-    "t_s": 198000.0,
+    "t_rel_s": 198000.0,
     "sigma_km": 10.28
    },
    {
-    "t_s": 201600.0,
+    "t_rel_s": 201600.0,
     "sigma_km": 9.44
    },
    {
-    "t_s": 205200.0,
+    "t_rel_s": 205200.0,
     "sigma_km": 9.61
    },
    {
-    "t_s": 208800.0,
+    "t_rel_s": 208800.0,
     "sigma_km": 101.58
    },
    {
-    "t_s": 212400.0,
+    "t_rel_s": 212400.0,
     "sigma_km": 192.82
    },
    {
-    "t_s": 216000.0,
+    "t_rel_s": 216000.0,
     "sigma_km": 296.25
    },
    {
-    "t_s": 219600.0,
+    "t_rel_s": 219600.0,
     "sigma_km": 402.61
    },
    {
-    "t_s": 223200.0,
+    "t_rel_s": 223200.0,
     "sigma_km": 510.08
    },
    {
-    "t_s": 226800.0,
+    "t_rel_s": 226800.0,
     "sigma_km": 618.1
    },
    {
-    "t_s": 230400.0,
+    "t_rel_s": 230400.0,
     "sigma_km": 726.46
    },
    {
-    "t_s": 234000.0,
+    "t_rel_s": 234000.0,
     "sigma_km": 835.04
    },
    {
-    "t_s": 237600.0,
+    "t_rel_s": 237600.0,
     "sigma_km": 943.81
    },
    {
-    "t_s": 241200.0,
+    "t_rel_s": 241200.0,
     "sigma_km": 1052.72
    },
    {
-    "t_s": 244800.0,
+    "t_rel_s": 244800.0,
     "sigma_km": 0.42
    },
    {
-    "t_s": 248400.0,
+    "t_rel_s": 248400.0,
     "sigma_km": 4.77
    },
    {
-    "t_s": 252000.0,
+    "t_rel_s": 252000.0,
     "sigma_km": 0.35
    },
    {
-    "t_s": 255600.0,
+    "t_rel_s": 255600.0,
     "sigma_km": 0.47
    },
    {
-    "t_s": 259200.0,
+    "t_rel_s": 259200.0,
     "sigma_km": 0.38
    },
    {
-    "t_s": 262800.0,
+    "t_rel_s": 262800.0,
     "sigma_km": 0.48
    },
    {
-    "t_s": 266400.0,
+    "t_rel_s": 266400.0,
     "sigma_km": 0.3
    },
    {
-    "t_s": 270000.0,
+    "t_rel_s": 270000.0,
     "sigma_km": 0.35
    },
    {
-    "t_s": 273600.0,
+    "t_rel_s": 273600.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 277200.0,
+    "t_rel_s": 277200.0,
     "sigma_km": 0.24
    },
    {
-    "t_s": 280800.0,
+    "t_rel_s": 280800.0,
     "sigma_km": 0.17
    },
    {
-    "t_s": 284400.0,
+    "t_rel_s": 284400.0,
     "sigma_km": 0.19
    },
    {
-    "t_s": 288000.0,
+    "t_rel_s": 288000.0,
     "sigma_km": 0.16
    },
    {
-    "t_s": 291600.0,
+    "t_rel_s": 291600.0,
     "sigma_km": 0.18
    },
    {
-    "t_s": 295200.0,
+    "t_rel_s": 295200.0,
     "sigma_km": 0.17
    },
    {
-    "t_s": 298800.0,
+    "t_rel_s": 298800.0,
     "sigma_km": 0.19
    },
    {
-    "t_s": 302400.0,
+    "t_rel_s": 302400.0,
     "sigma_km": 0.19
    },
    {
-    "t_s": 306000.0,
+    "t_rel_s": 306000.0,
     "sigma_km": 0.2
    },
    {
-    "t_s": 309600.0,
+    "t_rel_s": 309600.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 313200.0,
+    "t_rel_s": 313200.0,
     "sigma_km": 0.23
    },
    {
-    "t_s": 316800.0,
+    "t_rel_s": 316800.0,
     "sigma_km": 0.25
    },
    {
-    "t_s": 320400.0,
+    "t_rel_s": 320400.0,
     "sigma_km": 0.27
    },
    {
-    "t_s": 324000.0,
+    "t_rel_s": 324000.0,
     "sigma_km": 0.28
    },
    {
-    "t_s": 327600.0,
+    "t_rel_s": 327600.0,
     "sigma_km": 0.29
    },
    {
-    "t_s": 331200.0,
+    "t_rel_s": 331200.0,
     "sigma_km": 0.28
    },
    {
-    "t_s": 334800.0,
+    "t_rel_s": 334800.0,
     "sigma_km": 0.3
    },
    {
-    "t_s": 338400.0,
+    "t_rel_s": 338400.0,
     "sigma_km": 0.26
    },
    {
-    "t_s": 342000.0,
+    "t_rel_s": 342000.0,
     "sigma_km": 0.27
    },
    {
-    "t_s": 345600.0,
+    "t_rel_s": 345600.0,
     "sigma_km": 0.25
    },
    {
-    "t_s": 349200.0,
+    "t_rel_s": 349200.0,
     "sigma_km": 0.26
    },
    {
-    "t_s": 352800.0,
+    "t_rel_s": 352800.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 356400.0,
+    "t_rel_s": 356400.0,
     "sigma_km": 0.23
    },
    {
-    "t_s": 360000.0,
+    "t_rel_s": 360000.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 363600.0,
+    "t_rel_s": 363600.0,
     "sigma_km": 0.23
    },
    {
-    "t_s": 367200.0,
+    "t_rel_s": 367200.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 370800.0,
+    "t_rel_s": 370800.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 374400.0,
+    "t_rel_s": 374400.0,
     "sigma_km": 0.21
    },
    {
-    "t_s": 378000.0,
+    "t_rel_s": 378000.0,
     "sigma_km": 0.21
    },
    {
-    "t_s": 381600.0,
+    "t_rel_s": 381600.0,
     "sigma_km": 0.22
    },
    {
-    "t_s": 385200.0,
+    "t_rel_s": 385200.0,
     "sigma_km": 0.23
    },
    {
-    "t_s": 388800.0,
+    "t_rel_s": 388800.0,
     "sigma_km": 0.23
    },
    {
-    "t_s": 392400.0,
+    "t_rel_s": 392400.0,
     "sigma_km": 0.24
    },
    {
-    "t_s": 396000.0,
+    "t_rel_s": 396000.0,
     "sigma_km": 0.25
    },
    {
-    "t_s": 399600.0,
+    "t_rel_s": 399600.0,
     "sigma_km": 0.26
    },
    {
-    "t_s": 403200.0,
+    "t_rel_s": 403200.0,
     "sigma_km": 0.26
    },
    {
-    "t_s": 406800.0,
+    "t_rel_s": 406800.0,
     "sigma_km": 0.27
    },
    {
-    "t_s": 410400.0,
+    "t_rel_s": 410400.0,
     "sigma_km": 0.28
    },
    {
-    "t_s": 414000.0,
+    "t_rel_s": 414000.0,
     "sigma_km": 0.28
    },
    {
-    "t_s": 417600.0,
+    "t_rel_s": 417600.0,
     "sigma_km": 0.29
    },
    {
-    "t_s": 421200.0,
+    "t_rel_s": 421200.0,
     "sigma_km": 0.3
    },
    {
-    "t_s": 424800.0,
+    "t_rel_s": 424800.0,
     "sigma_km": 0.3
    },
    {
-    "t_s": 428400.0,
+    "t_rel_s": 428400.0,
     "sigma_km": 0.31
    },
    {
-    "t_s": 432000.0,
+    "t_rel_s": 432000.0,
     "sigma_km": 0.32
    },
    {
-    "t_s": 435600.0,
+    "t_rel_s": 435600.0,
     "sigma_km": 0.32
    },
    {
-    "t_s": 439200.0,
+    "t_rel_s": 439200.0,
     "sigma_km": 0.33
    },
    {
-    "t_s": 442800.0,
+    "t_rel_s": 442800.0,
     "sigma_km": 0.34
    },
    {
-    "t_s": 446400.0,
+    "t_rel_s": 446400.0,
     "sigma_km": 0.34
    },
    {
-    "t_s": 450000.0,
+    "t_rel_s": 450000.0,
     "sigma_km": 0.35
    },
    {
-    "t_s": 453600.0,
+    "t_rel_s": 453600.0,
     "sigma_km": 0.36
    },
    {
-    "t_s": 457200.0,
+    "t_rel_s": 457200.0,
     "sigma_km": 0.36
    },
    {
-    "t_s": 460800.0,
+    "t_rel_s": 460800.0,
     "sigma_km": 0.37
    },
    {
-    "t_s": 464400.0,
+    "t_rel_s": 464400.0,
     "sigma_km": 0.38
    },
    {
-    "t_s": 468000.0,
+    "t_rel_s": 468000.0,
     "sigma_km": 0.39
    },
    {
-    "t_s": 471600.0,
+    "t_rel_s": 471600.0,
     "sigma_km": 0.39
    },
    {
-    "t_s": 475200.0,
+    "t_rel_s": 475200.0,
     "sigma_km": 0.4
    },
    {
-    "t_s": 478800.0,
+    "t_rel_s": 478800.0,
     "sigma_km": 0.41
    },
    {
-    "t_s": 482400.0,
+    "t_rel_s": 482400.0,
     "sigma_km": 0.41
    },
    {
-    "t_s": 486000.0,
+    "t_rel_s": 486000.0,
     "sigma_km": 0.42
    },
    {
-    "t_s": 489600.0,
+    "t_rel_s": 489600.0,
     "sigma_km": 0.43
    },
    {
-    "t_s": 493200.0,
+    "t_rel_s": 493200.0,
     "sigma_km": 0.44
    },
    {
-    "t_s": 496800.0,
+    "t_rel_s": 496800.0,
     "sigma_km": 0.44
    },
    {
-    "t_s": 500400.0,
+    "t_rel_s": 500400.0,
     "sigma_km": 0.45
    },
    {
-    "t_s": 504000.0,
+    "t_rel_s": 504000.0,
     "sigma_km": 0.46
    },
    {
-    "t_s": 507600.0,
+    "t_rel_s": 507600.0,
     "sigma_km": 0.47
    },
    {
-    "t_s": 511200.0,
+    "t_rel_s": 511200.0,
     "sigma_km": 0.47
    },
    {
-    "t_s": 514800.0,
+    "t_rel_s": 514800.0,
     "sigma_km": 0.48
    },
    {
-    "t_s": 518400.0,
+    "t_rel_s": 518400.0,
     "sigma_km": 0.49
    }
   ],
@@ -1394,17 +1409,17 @@
    "LOST": 1
   },
   "t_burn_utc": "2026-02-25T08:30:00Z",
-  "t_burn_s": 203400.00002670288,
+  "t_burn_rel_s": 203400.00002670288,
   "t_detect_utc": "2026-02-25T10:00:00Z",
-  "t_detect_s": 208800.0,
+  "t_detect_rel_s": 208800.0,
   "detect_sensor": "siding_spring",
   "detect_nis": 6177.8,
   "detect_residual_arcsec": 96.51,
   "detection_latency_h": 1.5,
   "t_degraded_utc": "2026-02-25T10:00:00Z",
-  "t_degraded_s": 208800.0,
+  "t_degraded_rel_s": 208800.0,
   "t_lost_utc": "2026-02-25T19:00:00Z",
-  "t_lost_s": 241200.0,
+  "t_lost_rel_s": 241200.0,
   "loss_reason": {
    "dominant": "moon_exclusion",
    "at_loss": "moon_exclusion",
@@ -1430,7 +1445,9 @@
   },
   "moon_illum_at_loss": 0.645,
   "moon_sep_deg_at_loss": 8.87,
-  "sigma_at_detection_km": 104.4,
+  "sigma_at_detection_km": 101.6,
+  "sigma_at_detection_definition": "particle-cloud RSS position sigma at the detection frame (the custody metric); ukf_sigma_at_detection_km is sqrt(trace P_pos) of the re-opened filter covariance",
+  "ukf_sigma_at_detection_km": 104.4,
   "max_sigma_km": 1052.7,
   "t_max_sigma_utc": "2026-02-25T19:00:00Z",
   "tasking": {
@@ -1575,7 +1592,7 @@
     "nrho_obs"
    ],
    "t_task_utc": "2026-02-25T20:00:00Z",
-   "t_task_s": 244800.0,
+   "t_task_rel_s": 244800.0,
    "pointing_ra_deg": 81.592,
    "pointing_dec_deg": 28.326,
    "n_fields": 1,
@@ -1697,7 +1714,7 @@
    ]
   },
   "t_regained_utc": "2026-02-25T20:00:00Z",
-  "t_regained_s": 244800.0,
+  "t_regained_rel_s": 244800.0,
   "regained_after_h": 1.0,
   "regained_after_burn_h": 11.5,
   "sigma_after_regain_km": 0.42,
@@ -1865,6 +1882,7 @@
    ],
    "nees_consistent": false,
    "nees_n_epochs": 52,
+   "nees_note": "single-run statistic: the band assumes N independent epochs, but successive errors of one sequential run are strongly correlated (the effective N is much smaller), so a below-band mean here is indicative of a conservative covariance, not a failed realism test; the Monte-Carlo realism study (od/realism.py, tests/test_od_realism.py) is the calibrated check",
    "nees_baseline_mean": 0.84,
    "nees_baseline_bound": 14.1,
    "reopen_events": [
@@ -1892,26 +1910,26 @@
      "key": "l1_gateway",
      "name": "L1 gateway",
      "kind": "gateway",
-     "fraction": 1.0,
-     "sample_fraction": 0.9763,
-     "n_hit": 1687,
-     "earliest_h": 29.0,
-     "earliest_nominal_h": 34.0,
-     "min_dv_mps": 0.0,
-     "nominal_hits": true,
-     "newly_reachable": false,
-     "why_it_matters": "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an object that can reach it can reach the Moon-Earth corridor and the lunar vicinity."
+     "fraction": 0.1424,
+     "sample_fraction": 0.0237,
+     "n_hit": 41,
+     "earliest_h": 31.0,
+     "earliest_nominal_h": null,
+     "min_dv_mps": 10.0,
+     "nominal_hits": false,
+     "newly_reachable": true,
+     "why_it_matters": "Every low-energy transfer between the Earth realm and the lunar realm threads the L1 neck; an object that can transit it can reach the Moon-Earth corridor and the lunar vicinity."
     },
     {
      "key": "l2_gateway",
      "name": "L2 gateway",
      "kind": "gateway",
-     "fraction": 0.2778,
-     "sample_fraction": 0.0891,
-     "n_hit": 154,
-     "earliest_h": 108.0,
+     "fraction": 0.0625,
+     "sample_fraction": 0.011,
+     "n_hit": 19,
+     "earliest_h": 127.0,
      "earliest_nominal_h": null,
-     "min_dv_mps": 10.6,
+     "min_dv_mps": 38.8,
      "nominal_hits": false,
      "newly_reachable": true,
      "why_it_matters": "The L2 neck is the doorway to translunar space and the home of far-side relays and halo/NRHO traffic; it is also the hardest region to observe from Earth (behind the Moon, lunar glare)."
@@ -2016,38 +2034,48 @@
     }
    ],
    "refined_min_dv": {
-    "l2_gateway": {
-     "region": "l2_gateway",
-     "dv_mps": 10.625,
-     "dv_mps_lower": 10.0,
+    "l1_gateway": {
+     "region": "l1_gateway",
+     "dv_mps": 10.0,
+     "dv_mps_lower": 9.375,
      "dir_gcrf": [
-      -0.3490811668946689,
-      0.8341116024300016,
-      0.42708333333333337
+      0.1943655717688171,
+      0.6196680704752637,
+      0.7604166666666666
      ],
      "burn_h": 0.0,
-     "arrival_h": 168.0,
-     "sample_index": 315,
+     "arrival_h": 34.0,
+     "sample_index": 203,
+     "note": "sampled minimum along one direction/epoch (upper bound on the true optimum)"
+    },
+    "l2_gateway": {
+     "region": "l2_gateway",
+     "dv_mps": 38.75,
+     "dv_mps_lower": 37.8125,
+     "dir_gcrf": [
+      -0.8857679188436979,
+      0.4545614715825619,
+      0.09375
+     ],
+     "burn_h": 0.0,
+     "arrival_h": 154.0,
+     "sample_index": 427,
      "note": "sampled minimum along one direction/epoch (upper bound on the true optimum)"
     }
    },
    "n_terminated": 0
   },
   "truth_geometry": {
-   "min_dist_to_L1_km": 508.0,
-   "t_min_dist_to_L1_utc": "2026-02-27T02:00:00Z",
+   "min_dist_to_L1_km": 260.0,
+   "t_min_dist_to_L1_utc": "2026-02-27T02:13:35Z",
+   "min_dist_to_L1_grid_km": 508.0,
+   "min_dist_to_L1_note": "closest approach refined by bounded 1-D minimisation on the dense truth solution (min_dist_to_L1_grid_km is the hourly-frame minimum)",
+   "min_dist_to_L1_unperturbed_km": 4098.0,
+   "l1_transit": false,
+   "l1_transit_note": "True only if the SIMULATED truth passes through the L1 neck into the Earth realm (reachability/regions.py); a graze that stays in the lunar realm is not a transit",
    "min_dist_to_relay_km": 56192.0,
    "t_min_dist_to_relay_utc": "2026-02-27T02:00:00Z",
-   "region_entries": [
-    {
-     "key": "l1_gateway",
-     "name": "L1 gateway",
-     "t_s": 825397269.1852615,
-     "frame": 89,
-     "kind": "gateway",
-     "t_utc": "2026-02-26T17:00:00Z"
-    }
-   ]
+   "region_entries": []
   },
   "observations": {
    "n_total": 54,
@@ -2155,5 +2183,5 @@
  },
  "n_events": 33,
  "n_frames": 145,
- "bundle_bytes": 3726966
+ "bundle_bytes": 3670228
 }

@@ -14,12 +14,17 @@ ROUTE_MODULES = [
 ]
 
 
-def register_routes(app: FastAPI) -> None:
+def register_routes(app: FastAPI) -> list[str]:
+    """Include every importable router; returns the names that loaded (reported by /api/health)."""
+    loaded: list[str] = []
     for name in ROUTE_MODULES:
         try:
             mod = importlib.import_module(f"selene.api.routes.{name}")
         except ModuleNotFoundError as e:  # route not implemented yet
             if e.name and e.name.startswith("selene.api.routes"):
+                log.warning("route module %s not found; skipped", name)
                 continue
             raise
         app.include_router(mod.router, prefix="/api")
+        loaded.append(name)
+    return loaded

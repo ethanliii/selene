@@ -78,12 +78,30 @@ def _families_payload(n_samples: int, max_members: int, family: Optional[str]) -
     }, 9)
 
 
+#: cap on returned members x n_samples (each rotating-frame point ~27 bytes of JSON: 200 000 ~ 5.5 MB;
+#: ``max_members=0&n_samples=2000`` returned 650 000 points / 17.7 MB in 6.6 s before the cap)
+MAX_SAMPLE_POINTS = 200_000
+
+
+def _count_members(lib, max_members: int, family: Optional[str]) -> int:
+    n = 0
+    for key in lib.family_keys():
+        if family and key != family and not key.startswith(family):
+            continue
+        n += len(_thin(lib.members(key), max_members))
+    return n
+
+
 @router.get("/families", response_model=FamiliesOut)
 def families(
     n_samples: int = Query(200, ge=2, le=2000, description="positions per member over one period"),
     max_members: int = Query(12, ge=0, le=100, description="evenly thinned members per family (0 = all)"),
     family: Optional[str] = Query(None, description="restrict to one family key, e.g. 'L2_halo_S' or prefix 'L2_halo'"),
 ):
+    n_members = _count_members(get_library(), int(max_members), family)
+    if n_members * int(n_samples) > MAX_SAMPLE_POINTS:
+        raise HTTPException(400, detail=f"{n_members} members x {n_samples} samples = {n_members * n_samples} points exceeds the "
+                                        f"payload cap of {MAX_SAMPLE_POINTS}; lower n_samples or max_members, or restrict family")
     payload = _families_payload(int(n_samples), int(max_members), family)
     if not payload["families"]:
         raise HTTPException(404, detail=f"no family matches {family!r}; keys: {get_library().family_keys()}")

@@ -20,9 +20,13 @@ covariance, reachable set, schedule and estimate below is produced by the projec
 * **Burn** ``2026-02-25T08:30 UTC``, 30 m/s (notional actor; the magnitude is an assumption inside
   the 20–40 m/s class).  The *direction* was taken from the reachability engine: among 256 sampled
   30 m/s burn directions it is the one whose coasting arc passes closest to the Earth-Moon L1 point
-  (≈ 510 km at +41.5 h, against ≈ 4 200 km for the unperturbed DRO).  It is applied 30 min after the
-  last pre-burn ground tracklet so that exactly one post-burn ground observation (Siding Spring,
-  10:00 UTC) catches the anomaly before the glare closes the ground window.
+  (≈ 260 km at +41.8 h, refined on the dense solution — ``metrics.truth_geometry`` carries the
+  computed value — against ≈ 1 400–4 000 km for the unperturbed DRO over the cached span).  Note
+  that the burned arc *grazes* L1 and stays in the lunar realm: it does **not** transit the L1 neck
+  (``reachability/regions.py`` gateway definition), and the bundle says so (``closest_approach``
+  truth event, ``truth_geometry.l1_transit``).  It is applied 30 min after the last pre-burn ground
+  tracklet so that exactly one post-burn ground observation (Siding Spring, 10:00 UTC) catches the
+  anomaly before the glare closes the ground window.
 * **Reachability budget** 100 m/s / 168 h for the alert: an *assumed* analyst planning budget
   bounding the plausible single-maneuver class of a medium bus (the 30 m/s truth lies inside it).
   Reported fractions are what the sampler returns, including the honest result that the NRHO relay
@@ -92,8 +96,16 @@ DISCLAIMER = ("SIMULATED scenario. Every object, event and burn is notional and 
 
 #: Per-frame ground-blind label when no site has the object above its elevation limit at night (not a glare effect).
 NO_SITE_AVAILABLE = "no_site_available"
-#: Event kinds emitted beyond the spec list: the SIMULATED-truth burn marker (frontend headline.ts maps it to 'burn').
-EXTRA_EVENT_KINDS = {"maneuver": "SIMULATED-truth marker of the burn itself (never visible to the operator at that instant)"}
+#: Event kinds emitted beyond the spec list: the SIMULATED-truth burn marker (frontend headline.ts maps it to 'burn')
+#: and the truth closest-approach marker (the burned arc grazes L1 without transiting the neck).
+EXTRA_EVENT_KINDS = {"maneuver": "SIMULATED-truth marker of the burn itself (never visible to the operator at that instant)",
+                     "closest_approach": "SIMULATED-truth marker of the closest approach to L1 (a graze, not a neck transit)"}
+#: Time conventions of the bundle (also published as ``meta.time_fields``): ``t`` / ``t_rel_s`` are seconds since
+#: ``meta.t0_utc``; ``t_utc`` is ISO UTC; metrics ``*_rel_s`` are seconds since t0; ``tasking.attempts[].t_s`` and the
+#: filter re-open events carry absolute TDB seconds past J2000 like every other API route.
+TIME_FIELDS = {"t": "seconds since meta.t0_utc (frontend contract)", "t_rel_s": "same as t",
+               "t_utc": "ISO-8601 UTC with Z", "*_rel_s": "metrics: seconds since meta.t0_utc",
+               "t_s": "absolute TDB seconds past J2000 (same meaning as in every other API route)"}
 
 #: 30 m/s burn direction (GCRF unit vector) from the reachability sampler: closest approach to L1 (see module docstring).
 BURN_DIR_GCRF = np.array([-0.88729302, 0.39949375, 0.23046875])
@@ -220,6 +232,30 @@ def _los_rot(R_t: np.ndarray, u_gcrf: np.ndarray) -> np.ndarray:
     return R_t.T @ u_gcrf
 
 
+def _refine_closest_approach(state_at, grid: np.ndarray, k_min: int, point_rot: np.ndarray) -> tuple[float, float]:
+    """Closest approach of a trajectory to a rotating-frame landmark, refined by bounded 1-D minimisation of the
+    distance on the dense solution inside the grid cell around the grid minimum (same approach as the orbit
+    library's perilune refinement).  Returns (t_s, distance_km)."""
+    from scipy.optimize import minimize_scalar
+
+    p = np.asarray(point_rot, dtype=np.float64)
+
+    def dist_km(t: float) -> float:
+        st = np.asarray(state_at(float(t)), dtype=np.float64).reshape(1, 6)
+        r = frames.gcrf_to_rot(st, np.array([float(t)]))[0, :3]
+        return float(np.linalg.norm(r - p) * L_STAR)
+
+    lo = float(grid[max(k_min - 1, 0)])
+    hi = float(grid[min(k_min + 1, len(grid) - 1)])
+    if hi <= lo:
+        return float(grid[k_min]), dist_km(float(grid[k_min]))
+    res = minimize_scalar(dist_km, bounds=(lo, hi), method="bounded", options={"xatol": 1.0})
+    t_best = float(res.x)
+    d_best = float(res.fun)
+    d_grid = dist_km(float(grid[k_min]))
+    return (t_best, d_best) if d_best <= d_grid else (float(grid[k_min]), d_grid)
+
+
 # ---------------------------------------------------------------------------
 # builder
 # ---------------------------------------------------------------------------
@@ -227,12 +263,13 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
     """Run the full engine chain and return the demo bundle.
 
     Bundle keys: ``meta`` (title, t0_utc, t1_utc, duration_s, playback_speed, epoch_choice_rationale,
-    disclaimer, ...), ``frames`` (hourly; each with ``t_s``/``t``, ``t_utc``, ``objects``, ``clouds``,
-    ``sensors``, optional ``reachable``, ``observations``), ``events`` (chronological), ``metrics``
-    (custody_timeline, sigma_timeline, detection_latency_h, dv_true_mps, dv_est_mps, dv_est_err_pct,
+    disclaimer, time_fields, ...), ``frames`` (hourly; each with ``t`` = ``t_rel_s`` seconds since t0, ``t_utc``,
+    ``objects``, ``clouds``, ``sensors``, optional ``reachable``, ``observations``), ``events`` (chronological),
+    ``metrics`` (custody_timeline, sigma_timeline, detection_latency_h, dv_true_mps, dv_est_mps, dv_est_err_pct,
     dir_err_deg, regained_after_h, ...), ``brief`` (markdown).  Field aliases for the frontend:
-    ``t`` (= ``t_s``), ``custody_ui`` ('held'/'degraded'/'lost'), ``pos_gcrf_km``, ``sigma_pos_km``,
-    ``target_id``, ``boresight_rot`` and cloud ``points`` (= ``points_rot``, flat xyz).
+    ``t`` (= ``t_rel_s``), ``custody_ui`` ('held'/'degraded'/'lost'), ``sigma_pos_km`` (= ``sigma_km``),
+    ``target_id``, ``boresight_rot`` and cloud ``points`` (= ``points_rot``, flat xyz).  Object positions are
+    ``pos_rot`` (nd) and ``pos_gcrf_km`` only.  See :data:`TIME_FIELDS` for the time conventions.
     """
     cfg = config or DemoConfig.make(seed, fast)
     tic = time.perf_counter()
@@ -557,9 +594,17 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
         if m.any():
             k = int(np.argmax(m))
             entries.append({"key": reg.key, "name": reg.name, "t_s": float(grid[k]), "frame": k, "kind": reg.kind})
-    d_l1_km = np.linalg.norm(rot_truth[:, :3] - np.asarray(regions[0].params["center_rot_nd"]), axis=1) * L_STAR
+    l1_rot = np.asarray(regions[0].params["center_rot_nd"], dtype=np.float64)
+    d_l1_km = np.linalg.norm(rot_truth[:, :3] - l1_rot, axis=1) * L_STAR
+    # closest approach refined on the dense truth solution (the hourly-grid minimum overstated it by ~250 km)
+    t_l1_min, d_l1_min_km = _refine_closest_approach(truth.at, grid, int(np.argmin(d_l1_km)), l1_rot)
+    l1_transit = any(en["key"] == "l1_gateway" for en in entries)
     relay_grid = cat.state_at(RELAY, grid)
     d_relay_km = np.linalg.norm(truth_grid[:, :3] - relay_grid[:, :3], axis=1)
+    # the same quantities for the UNPERTURBED orbit over the window (what the burn changed)
+    quiet_grid = cat.state_at(PROTAGONIST, grid)
+    d_l1_quiet_km = np.linalg.norm(frames.gcrf_to_rot(quiet_grid, grid)[:, :3] - l1_rot, axis=1) * L_STAR
+    _, d_l1_quiet_min_km = _refine_closest_approach(lambda t: cat.state_at(PROTAGONIST, t), grid, int(np.argmin(d_l1_quiet_km)), l1_rot)
 
     # ---- frames ------------------------------------------------------------------------------
     t_a = time.perf_counter()
@@ -635,7 +680,7 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
                 stt = _custody(sg, cfg)
                 pr = other_rot[oid][k]
                 pg = other_truth[oid][k, :3]
-            o = {"id": oid, "pos_rot": _r(pr, 6), "pos_gcrf": _r(pg, 1), "pos_gcrf_km": _r(pg, 1),
+            o = {"id": oid, "pos_rot": _r(pr, 6), "pos_gcrf_km": _r(pg, 1),
                  "custody": stt, "custody_ui": _UI[stt], "sigma_km": _r(sg, 2), "sigma_pos_km": _r(sg, 2)}
             if oid == PROTAGONIST:
                 o["pos_est_rot"] = _r(cloud_mean_rot[k], 6)
@@ -681,7 +726,7 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
             if oid != PROTAGONIST:
                 obs_rows.append({"sensor_id": sid, "object_id": oid, "residual_arcsec": None,
                                  "note": "linear-covariance tasking look (no measurement realisation)"})
-        fr = {"t_s": float(t - t0), "t": float(t - t0), "t_utc": grid_utc[k], "objects": objs, "clouds": clouds,
+        fr = {"t": float(t - t0), "t_rel_s": float(t - t0), "t_utc": grid_utc[k], "objects": objs, "clouds": clouds,
               "sensors": sens, "observations": obs_rows,
               "ground_blind_reason": dominant_reason[k], "ground_sites_available": int(n_avail[k]),
               "moon_illum": _r(illum[k], 3), "moon_sep_deg": _r(sep_moon_deg[k], 2)}
@@ -719,28 +764,38 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
     nees = report.summary.get("nees") or {}
     health = report.summary.get("filter_health", {})
     custody_frac = float(np.mean([s == "CUSTODY" for s in status]))
+    # ONE definition of "sigma at detection" everywhere (events, frames, metrics): the particle-cloud RSS position
+    # sigma at the detection frame, which is what drives the custody thresholds; the UKF covariance after the
+    # re-open is reported separately under its own name.
+    k_det_frame = int(np.argmin(np.abs(grid - t_det)))
+    sigma_det_cloud = float(cloud_sigma[k_det_frame])
     metrics = {
         "protagonist": PROTAGONIST, "relay": RELAY,
-        "custody_timeline": [{"t_s": float(grid[k] - t0), "t_utc": grid_utc[k], "status": status[k]} for k in range(n_frames)],
-        "sigma_timeline": [{"t_s": float(grid[k] - t0), "sigma_km": _r(cloud_sigma[k], 2)} for k in range(n_frames)],
+        "time_fields": TIME_FIELDS,
+        "custody_timeline": [{"t_rel_s": float(grid[k] - t0), "t_utc": grid_utc[k], "status": status[k]} for k in range(n_frames)],
+        "sigma_timeline": [{"t_rel_s": float(grid[k] - t0), "sigma_km": _r(cloud_sigma[k], 2)} for k in range(n_frames)],
         "custody_pct": _r(100.0 * custody_frac, 1),
         "custody_status_counts": {s: int(sum(1 for x in status if x == s)) for s in ("CUSTODY", "DEGRADED", "LOST")},
-        "t_burn_utc": _utc(tb), "t_burn_s": tb - t0,
-        "t_detect_utc": _utc(t_det), "t_detect_s": t_det - t0, "detect_sensor": det_meas.sensor_id, "detect_nis": _r(run.nis[i_det], 1),
+        "t_burn_utc": _utc(tb), "t_burn_rel_s": tb - t0,
+        "t_detect_utc": _utc(t_det), "t_detect_rel_s": t_det - t0, "detect_sensor": det_meas.sensor_id, "detect_nis": _r(run.nis[i_det], 1),
         "detect_residual_arcsec": _r(float(np.linalg.norm(run.innov[i_det]) / ARCSEC), 2),
         "detection_latency_h": _r((t_det - tb) / HOUR, 3),
         "t_degraded_utc": _utc(t_degraded) if t_degraded is not None else None,
-        "t_degraded_s": (t_degraded - t0) if t_degraded is not None else None,
-        "t_lost_utc": _utc(t_lost) if custody_lost else None, "t_lost_s": (t_lost - t0) if custody_lost else None,
+        "t_degraded_rel_s": (t_degraded - t0) if t_degraded is not None else None,
+        "t_lost_utc": _utc(t_lost) if custody_lost else None, "t_lost_rel_s": (t_lost - t0) if custody_lost else None,
         "loss_reason": _loss_reason(dominant_reason, avail_sites, grid, t_det, t_lost, t1),
         "ground_blind_reason_counts": _reason_counts(dominant_reason, grid, t_det, t1),
         "moon_illum_at_loss": _r(illum[int(np.argmin(np.abs(grid - t_lost)))], 3),
         "moon_sep_deg_at_loss": _r(sep_moon_deg[int(np.argmin(np.abs(grid - t_lost)))], 2),
-        "sigma_at_detection_km": _r(sigma_det, 1), "max_sigma_km": _r(float(cloud_sigma.max()), 1),
+        "sigma_at_detection_km": _r(sigma_det_cloud, 1),
+        "sigma_at_detection_definition": "particle-cloud RSS position sigma at the detection frame (the custody metric); "
+                                         "ukf_sigma_at_detection_km is sqrt(trace P_pos) of the re-opened filter covariance",
+        "ukf_sigma_at_detection_km": _r(sigma_det, 1),
+        "max_sigma_km": _r(float(cloud_sigma.max()), 1),
         "t_max_sigma_utc": grid_utc[int(np.argmax(cloud_sigma))],
         "tasking": _tasking_metrics(reacq, attempts, t0, n_tiles, len(follow_meas), cfg),
         "t_regained_utc": _utc(t_regained) if t_regained is not None else None,
-        "t_regained_s": (t_regained - t0) if t_regained is not None else None,
+        "t_regained_rel_s": (t_regained - t0) if t_regained is not None else None,
         "regained_after_h": _r((t_regained - t_lost) / HOUR, 2) if (t_regained is not None and custody_lost) else None,
         "regained_after_burn_h": _r((t_regained - tb) / HOUR, 2) if t_regained is not None else None,
         "sigma_after_regain_km": _r(float(cloud_sigma[int(np.argmin(np.abs(grid - t_regained)))]), 2) if t_regained is not None else None,
@@ -760,14 +815,26 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
                       "baseline_established": bool(health.get("baseline_established")), "warnings": health.get("warnings", []),
                       "nees_mean": _r(nees.get("mean_nees"), 2), "nees_bounds": _r(nees.get("mean_bounds"), 2),
                       "nees_consistent": nees.get("consistent"), "nees_n_epochs": nees.get("n_epochs"),
+                      "nees_note": "single-run statistic: the band assumes N independent epochs, but successive errors of one "
+                                   "sequential run are strongly correlated (the effective N is much smaller), so a below-band mean "
+                                   "here is indicative of a conservative covariance, not a failed realism test; the Monte-Carlo "
+                                   "realism study (od/realism.py, tests/test_od_realism.py) is the calibrated check",
                       "nees_baseline_mean": _r(health.get("nees_baseline_mean"), 2), "nees_baseline_bound": _r(health.get("nees_baseline_bound"), 2),
                       "reopen_events": reopen2.events},
         "reachability": {"dv_budget_mps": cfg.dv_budget_mps, "horizon_h": cfg.horizon_h, "n_samples": int(rs.n_samples),
                          "n_dirs": int(rcfg.n_dirs), "burn_epochs_h": list(burn_epochs), "t_ref_utc": _utc(t_pre),
                          "regions": region_rows, "refined_min_dv": refined, "n_terminated": int(rs.meta["n_terminated"])},
-        "truth_geometry": {"min_dist_to_L1_km": _r(float(d_l1_km.min()), 0), "t_min_dist_to_L1_utc": grid_utc[int(np.argmin(d_l1_km))],
+        "truth_geometry": {"min_dist_to_L1_km": _r(d_l1_min_km, 0), "t_min_dist_to_L1_utc": _utc(t_l1_min),
+                           "min_dist_to_L1_grid_km": _r(float(d_l1_km.min()), 0),
+                           "min_dist_to_L1_note": "closest approach refined by bounded 1-D minimisation on the dense truth solution "
+                                                  "(min_dist_to_L1_grid_km is the hourly-frame minimum)",
+                           "min_dist_to_L1_unperturbed_km": _r(d_l1_quiet_min_km, 0),
+                           "l1_transit": bool(l1_transit),
+                           "l1_transit_note": "True only if the SIMULATED truth passes through the L1 neck into the Earth realm "
+                                              "(reachability/regions.py); a graze that stays in the lunar realm is not a transit",
                            "min_dist_to_relay_km": _r(float(d_relay_km.min()), 0), "t_min_dist_to_relay_utc": grid_utc[int(np.argmin(d_relay_km))],
-                           "region_entries": [{**en, "t_utc": _utc(en["t_s"])} for en in entries]},
+                           "region_entries": [{**{k: v for k, v in en.items() if k != "t_s"}, "t_rel_s": en["t_s"] - t0,
+                                               "t_utc": _utc(en["t_s"])} for en in entries]},
         "observations": {"n_total": len(run.meas), "n_ground": len(ground_meas), "n_ground_pre_burn": int(sum(1 for m in ground_meas if m.t_s < tb)),
                          "n_ground_post_burn": int(sum(1 for m in ground_meas if m.t_s >= tb)), "n_space_followup": len(follow_meas),
                          "by_sensor": _count_by_sensor(run.meas), "sigma_arcsec": cfg.sigma_arcsec, "cadence_h": cfg.obs_cadence_s / HOUR},
@@ -782,7 +849,8 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
     # ---- events ---------------------------------------------------------------------------------
     events = _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost if custody_lost else None, t_regained, t_char, run, i_det,
                            reacq, attempts, entries, region_rows, metrics, est_block, status, grid, grid_utc, cloud_sigma, follow_meas,
-                           dominant_reason, avail_sites, illum, sep_moon_deg, d_l1_km)
+                           dominant_reason, avail_sites, illum, sep_moon_deg, d_l1_km,
+                           closest_l1=(t_l1_min, d_l1_min_km, l1_transit, d_l1_quiet_min_km))
 
     # ---- meta + brief ---------------------------------------------------------------------------
     duration = float(t1 - t0)
@@ -790,8 +858,11 @@ def build_scenario(seed: int = 0, fast: bool = False, config: Optional[DemoConfi
         "title": TITLE, "t0_utc": _utc(t0), "t1_utc": _utc(t1), "duration_s": duration,
         "playback_s": cfg.playback_s, "playback_speed": duration / cfg.playback_s, "frame_dt_s": cfg.frame_dt_s, "n_frames": n_frames,
         "protagonist_id": PROTAGONIST, "relay_id": RELAY, "fast": cfg.fast, "seed": cfg.seed,
-        "epoch_choice_rationale": EPOCH_RATIONALE, "burn_rationale": BURN_RATIONALE, "assumptions": ASSUMPTIONS,
-        "disclaimer": DISCLAIMER, "engines": ENGINES, "build_log": log,
+        "epoch_choice_rationale": EPOCH_RATIONALE,
+        "burn_rationale": BURN_RATIONALE.format(closest_km=d_l1_min_km, closest_h=(t_l1_min - tb) / HOUR, quiet_km=d_l1_quiet_min_km,
+                                                transit="transits" if l1_transit else "does not transit"),
+        "assumptions": ASSUMPTIONS,
+        "disclaimer": DISCLAIMER, "engines": ENGINES, "build_log": log, "time_fields": TIME_FIELDS,
         "event_kinds": sorted({e["kind"] for e in events}), "extra_event_kinds": EXTRA_EVENT_KINDS,
         "search_fields_per_slot": n_tiles,
     }
@@ -810,12 +881,12 @@ def _tasking_metrics(reacq, attempts, t0, n_tiles, n_follow, cfg) -> dict:
             "scheduler": f"greedy ({cfg.escalation_gain} gain, FOV acquisition model), priority 3 on the object of interest",
             "escalation_delay_h": cfg.escalation_delay_s / HOUR}
     if reacq is None:
-        base.update(sensor_id=None, sensor_ids=[], t_task_utc=None, t_task_s=None, pointing_ra_deg=None, pointing_dec_deg=None,
+        base.update(sensor_id=None, sensor_ids=[], t_task_utc=None, t_task_rel_s=None, pointing_ra_deg=None, pointing_dec_deg=None,
                     n_fields=None, spread_p90_deg=None, offset_deg=None, range_km=None, magnitude=None, sensors=[], not_acquired=[], blocked=[])
         return base
     pr = reacq["primary"]
     base.update(sensor_id=pr["sensor_id"], sensor_ids=[r["sensor_id"] for r in reacq["sensors"]], t_task_utc=reacq["t_utc"],
-                t_task_s=reacq["t_s"] - t0, pointing_ra_deg=_r(pr["ra_deg"], 3), pointing_dec_deg=_r(pr["dec_deg"], 3),
+                t_task_rel_s=reacq["t_s"] - t0, pointing_ra_deg=_r(pr["ra_deg"], 3), pointing_dec_deg=_r(pr["dec_deg"], 3),
                 n_fields=pr["n_fields_p90"], n_fields_used=pr.get("n_fields_used"), mosaic_radius_deg=_r(pr.get("mosaic_radius_deg"), 3),
                 spread_p90_deg=_r(pr["spread_p90_deg"], 2), offset_deg=_r(pr["offset_deg"], 3),
                 range_km=_r(pr["range_km"], 0), magnitude=_r(pr["magnitude"], 2),
@@ -885,14 +956,15 @@ def _blind_phrase(reason: Optional[str], avail: list[str]) -> str:
 
 def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char, run, i_det, reacq, attempts, entries, region_rows,
                   metrics, est_block, status, grid, grid_utc, cloud_sigma, follow_meas, dominant_reason, avail_sites, illum, sep_moon,
-                  d_l1_km) -> list:
+                  d_l1_km, closest_l1=None) -> list:
     """Chronological feed.  Same-epoch ordering is fixed by ``rank`` (lower first): truth marker -1, status/detection 1,
-    tasking 2, re-acquisition tracklet 3, custody change 4, follow-up tracklets 5, characterisation 6, brief 9."""
+    tasking 2, re-acquisition tracklet 3, custody change 4, follow-up tracklets 5, characterisation 6, brief 9.
+    Event times: ``t`` = ``t_rel_s`` seconds since t0 and ``t_utc`` (see :data:`TIME_FIELDS`)."""
     ev: list[dict] = []
     R_TRUTH, R_OBS, R_DETECT, R_STATUS, R_ALERT, R_TASK, R_REACQ, R_CUSTODY, R_FOLLOW, R_CHAR, R_BRIEF = -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9
 
     def add(t_s, kind, severity, text, object_id=None, data=None, rank=0):
-        ev.append({"t_s": float(t_s - t0), "t": float(t_s - t0), "t_utc": _utc(t_s), "kind": kind, "severity": severity,
+        ev.append({"t": float(t_s - t0), "t_rel_s": float(t_s - t0), "t_utc": _utc(t_s), "kind": kind, "severity": severity,
                    "text": text, "object_id": object_id, "data": data or {}, "_rank": rank})
 
     # custody nominal
@@ -967,14 +1039,18 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
     t_alert = t_det
     # reachability alert
     n_rays = int(metrics["reachability"]["n_samples"])
-    hit = [r for r in region_rows if r["n_hit"] or r["nominal_hits"]]
-    parts = []
-    for r in hit:
-        if r["nominal_hits"]:
-            parts.append(f"{r['name']}: on the unperturbed path (first entry +{r['earliest_nominal_h']:.0f} h with no burn"
-                         + (f"; earliest +{r['earliest_h']:.0f} h with a burn" if r["earliest_h"] is not None else "") + ")")
-        else:
-            parts.append(f"{r['name']}: {100 * r['fraction']:.0f} % of sampled rays, earliest +{r['earliest_h']:.0f} h, >= {r['min_dv_mps']:.0f} m/s")
+    # headline = regions that the burn OPENS (not on the unperturbed path); regions the quiet orbit visits anyway carry no
+    # information about the maneuver and are listed separately so the alert never flags routine geometry as new
+    new = [r for r in region_rows if r["n_hit"] and not r["nominal_hits"]]
+    routine = [r for r in region_rows if r["nominal_hits"]]
+    parts = [f"{r['name']}: {100 * r['fraction']:.0f} % of sampled rays, earliest +{r['earliest_h']:.0f} h, >= {r['min_dv_mps']:.0f} m/s"
+             for r in new]
+    if not parts:
+        parts.append("no high-value region that the unperturbed orbit does not already visit")
+    routine_txt = ""
+    if routine:
+        routine_txt = (" Already on the unperturbed path (not attributable to the burn): "
+                       + "; ".join(f"{r['name']} (first entry +{r['earliest_nominal_h']:.0f} h with no burn)" for r in routine) + ".")
     nrho = next((r for r in region_rows if r["key"] == "nrho_corridor"), None)
     relay_txt = ""
     if nrho is not None:
@@ -988,8 +1064,10 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
         relay_txt += " Recommendation: increased custody on the object and conjunction screening for the relay; no closer approach is implied."
     add(t_alert, "reachability_alert", "warn",
         f"REACHABILITY (awareness only): from the last good state with an assumed {cfg.dv_budget_mps:.0f} m/s budget over {cfg.horizon_h:.0f} h, "
-        f"{PROTAGONIST} could enter: " + "; ".join(parts) + "." + relay_txt, PROTAGONIST,
-        {"dv_budget_mps": cfg.dv_budget_mps, "horizon_h": cfg.horizon_h, "regions": region_rows, "show_layers": ["reachable"]}, rank=R_ALERT)
+        f"{PROTAGONIST} could newly enter: " + "; ".join(parts) + "." + routine_txt + relay_txt, PROTAGONIST,
+        {"dv_budget_mps": cfg.dv_budget_mps, "horizon_h": cfg.horizon_h, "regions": region_rows,
+         "newly_reachable": [r["key"] for r in new], "on_unperturbed_path": [r["key"] for r in routine],
+         "show_layers": ["reachable"]}, rank=R_ALERT)
     # tasking
     tk = metrics["tasking"]
     if reacq is not None:
@@ -1031,7 +1109,7 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
             f"{n_sp} space-observer tracklet(s) ({metrics['regained_after_h'] or 0:.1f} h after loss, "
             f"{metrics['regained_after_burn_h']:.1f} h after the burn).", PROTAGONIST,
             {"sigma_km": round(float(cloud_sigma[k_r]), 2), "show_layers": ["clouds"]}, rank=R_CUSTODY)
-    # region entries (truth)
+    # region entries (truth): with the neck-transit gateway definition a region entry means a real realm change
     for en in entries:
         if en["t_s"] <= t0 + 1e-6:
             continue
@@ -1039,6 +1117,17 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
         add(en["t_s"], "entered_region", "warn" if en["kind"] in ("gateway", "corridor") else "info",
             f"[SIMULATED truth] {PROTAGONIST} enters {en['name']} ({d_l1_km[k]:,.0f} km from L1); custody status at the time: {status[k]}.",
             PROTAGONIST, {"region": en["key"], "custody": status[k]}, rank=R_OBS)
+    # closest approach to L1 (truth): the burned arc grazes the neck; say so instead of calling a graze an entry
+    if closest_l1 is not None:
+        t_ca, d_ca, transit, d_quiet = closest_l1
+        if t0 < t_ca < t1:
+            k = int(np.argmin(np.abs(grid - t_ca)))
+            add(t_ca, "closest_approach", "info",
+                f"[SIMULATED truth] {PROTAGONIST} passes {d_ca:,.0f} km from the Earth-Moon L1 point (+{(t_ca - tb) / HOUR:.1f} h after the burn; "
+                f"the unperturbed orbit would have come no closer than {d_quiet:,.0f} km in this window) and "
+                f"{'transits the L1 neck into the Earth realm' if transit else 'does NOT transit the L1 neck: it stays in the lunar realm'}; "
+                f"custody status at the time: {status[k]}.", PROTAGONIST,
+                {"region": "l1_gateway", "distance_km": round(float(d_ca), 0), "transit": bool(transit), "custody": status[k]}, rank=R_OBS)
     if t_char is not None and est_block is not None:
         add(t_char, "maneuver_characterised", "info",
             f"MANEUVER CHARACTERISED: dv {est_block['dv_mps']:.2f} +/- {est_block['dv_sigma_mps']:.2f} m/s "
@@ -1046,7 +1135,11 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
             f"({metrics['dir_err_deg']:.2f} deg from truth), RTN {est_block['dv_rtn_mps'][0]:+.1f}/{est_block['dv_rtn_mps'][1]:+.1f}/{est_block['dv_rtn_mps'][2]:+.1f} m/s, "
             f"epoch {est_block['t_burn_utc']} +/- {est_block['t_burn_sigma_s']:.0f} s ({est_block['t_burn_err_s']:+.0f} s from truth); "
             f"{est_block['classification']['primary']}.", PROTAGONIST,
-            {"dv_mps": est_block["dv_mps"], "dv_sigma_mps": est_block["dv_sigma_mps"], "direction": est_block["direction_rot"],
+            # ``direction`` is GCRF (same frame as metrics.dv_true_dir_gcrf and the maneuver route's direction_gcrf);
+            # the rotating-frame version is published under its own, frame-tagged name
+            {"dv_mps": est_block["dv_mps"], "dv_sigma_mps": est_block["dv_sigma_mps"],
+             "direction": est_block["direction_gcrf"], "direction_frame": "gcrf", "direction_gcrf": est_block["direction_gcrf"],
+             "direction_rot": est_block["direction_rot"], "direction_rot_frame": "earth_moon_rotating_nd",
              "confidence": 1.0 - metrics["detection"]["alpha"], "dv_rtn_mps": est_block["dv_rtn_mps"]}, rank=R_CHAR)
         t_brief = max(t_char, t_regained or t_char) + 1.0
     elif est_block is None:
@@ -1057,7 +1150,7 @@ def _build_events(cfg, t0, t1, tb, t_det, t_degraded, t_lost, t_regained, t_char
         t_brief = t_char + 1.0
     t_brief = min(t_brief, t1)
     add(t_brief, "brief_ready", "info", "Analyst brief generated (SIMULATED — notional actor).", PROTAGONIST, {"show_layers": ["brief"]}, rank=R_BRIEF)
-    ev.sort(key=lambda d: (d["t_s"], d["_rank"], d["kind"]))
+    ev.sort(key=lambda d: (d["t_rel_s"], d["_rank"], d["kind"]))
     for d in ev:
         d.pop("_rank", None)
     return ev
@@ -1074,10 +1167,13 @@ EPOCH_RATIONALE = (
     "parameterisation or a 30-min epoch shift leaves no post-burn ground observation and the builder raises instead of "
     "inventing a detection."
 )
+#: formatted at build time with the refined closest-approach numbers (``{closest_km}``, ``{closest_h}``, ``{quiet_km}``, ``{transit}``)
 BURN_RATIONALE = (
     "30 m/s (assumed, inside the 20-40 m/s class) at 2026-02-25T08:30Z. Direction: of 256 Fibonacci-sampled 30 m/s burn "
     "directions propagated with the reachability engine, the one whose coasting arc passes closest to the Earth-Moon L1 point "
-    "(~510 km at +41.5 h vs ~4 200 km for the unperturbed DRO). The notional actor's intent is never inferred."
+    "({closest_km:,.0f} km at +{closest_h:.1f} h after the burn, refined on the dense solution, vs {quiet_km:,.0f} km for the "
+    "unperturbed DRO in this window). The burned arc {transit} the L1 neck (it grazes L1 and stays in the lunar realm), which "
+    "the bundle states explicitly. The notional actor's intent is never inferred."
 )
 ASSUMPTIONS = [
     "All sensors are notional (assumed representative specs); astrometric noise 1 arcsec (1-sigma, isotropic on-sky).",

@@ -287,14 +287,18 @@ def test_dro_impactors_terminate_at_the_true_surface_crossing():
 
 
 def test_min_dv_is_zero_for_regions_on_the_nominal_path():
+    """The notional NRHO relay flies the 9:2 NRHO, so its 0-dv path is inside the NRHO corridor by construction
+    (the DRO demo object is on NO named region: the gateways are neck transits, which a DRO never performs)."""
     cfg = ReachabilityConfig(dv_budget_mps=50.0, horizon_h=168.0, n_dirs=12)
-    rs = reachability_for_object("SIM-DRO-01", cfg=cfg)
-    st = rs.stats_by_key()["l2_gateway"]
+    rs = reachability_for_object("SIM-NRHO-RELAY-01", cfg=cfg)
+    st = rs.stats_by_key()["nrho_corridor"]
     assert st.nominal_hits and st.fraction == 1.0
     assert st.min_dv_mps == 0.0 and not st.newly_reachable
     assert st.earliest_h <= st.earliest_nominal_h
-    ref = refine_min_dv(rs, "l2_gateway")
+    ref = refine_min_dv(rs, "nrho_corridor")
     assert ref["dv_mps"] == 0.0 and ref["sample_index"] is None
+    quiet = reachability_for_object("SIM-DRO-01", cfg=ReachabilityConfig(dv_budget_mps=0.0, horizon_h=168.0, n_dirs=1, burn_epochs_h=(0.0,)))
+    assert not quiet.nominal_hits["l1_gateway"].any() and not quiet.nominal_hits["l2_gateway"].any()
 
 
 def test_jacobi_classifier_uses_instantaneous_frame_rate():

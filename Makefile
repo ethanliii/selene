@@ -20,6 +20,7 @@ data:
 
 setup-py:
 	@test -x $(PY) || python3 -m venv $(ROOT)/.venv
+	$(PIP) install -q -r $(ROOT)/backend/requirements.lock
 	$(PIP) install -q -e "$(ROOT)/backend[dev]"
 
 setup-js:

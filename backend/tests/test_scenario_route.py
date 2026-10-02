@@ -54,11 +54,11 @@ def test_committed_bundle_is_the_full_build_with_the_story(client):
     assert m["loss_reason"]["n_frames_no_site_available_after_detection"] >= 1   # the honest non-glare hours are counted
     assert m["t_lost_utc"] is not None and m["t_regained_utc"] is not None and m["regained_after_h"] > 0
     ev = d["events"]
-    t = {k: _first(ev, k)["t_s"] for k in ("maneuver", "maneuver_detected", "custody_lost", "tasking_update", "custody_regained",
+    t = {k: _first(ev, k)["t_rel_s"] for k in ("maneuver", "maneuver_detected", "custody_lost", "tasking_update", "custody_regained",
                                             "maneuver_characterised", "brief_ready")}
     assert t["maneuver"] < t["maneuver_detected"] <= t["custody_lost"] < t["tasking_update"] <= t["custody_regained"] \
         < t["maneuver_characterised"] < t["brief_ready"]
-    assert [e["t_s"] for e in ev] == sorted(e["t_s"] for e in ev)
+    assert [e["t_rel_s"] for e in ev] == sorted(e["t_rel_s"] for e in ev)
     assert m["detection"]["nees_mean"] <= m["detection"]["nees_bounds"][1]       # never over-confident
     assert "sampling resolution" in d["brief"] and "not a glare effect" in d["brief"]
 

@@ -123,7 +123,24 @@ def test_explicit_objects_and_sensors_and_methods(client):
     ({"t1": "2026-02-01T00:00:00"}, 400),
     ({"slot_min": 1, "t1": "2026-03-10T00:00:00"}, 400),
     ({"t0": "not a date"}, 400),
+    ({"extra_sensors": [{"bogus": 1}]}, 422),                        # validated spec: field-level errors, no Python signature leak
+    ({"extra_sensors": [{"id": "x"}]}, 422),                          # platform_orbit required
+    ({"extra_sensors": [{"id": "x", "platform_orbit": "warp"}]}, 422),
+    ({"time_budget_s": 300}, 422),                                    # synchronous route: budget capped at 30 s
+    ({"t0": "1500-01-01T00:00:00Z"}, 400),                            # outside the DE440s span
 ])
 def test_validation_errors(client, body, status):
     r = client.post("/api/tasking/schedule", json=body)
     assert r.status_code == status, r.text
+    if status == 400:
+        assert not r.json()["detail"].startswith('"')                 # KeyError text is unquoted
+    if "extra_sensors" in body:
+        assert "__init__" not in r.text and "positional" not in r.text
+
+
+def test_extra_sensor_spec_is_built_and_used(client):
+    body = {"object_ids": ["SIM-DRO-01"], "sensor_ids": [], "t1": "2026-03-01T06:00:00Z",
+            "extra_sensors": [{"id": "geo_adhoc", "platform_orbit": "geo", "geo_longitude_deg": 10.0, "kind": "space"}]}
+    r = client.post("/api/tasking/schedule", json=body)
+    assert r.status_code == 200, r.text
+    assert r.json()["config"]["sensor_ids"] == ["geo_adhoc"]

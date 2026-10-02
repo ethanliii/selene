@@ -190,7 +190,7 @@ class EvalConfig:
     phasing_span_days: Optional[float] = None    # None -> whole truth window minus the horizon
     gain_kind: str = "trace"
     acquisition: str = "fov"
-    #: optional reference target population: overrides every object's catalog radius / albedo
+    #: optional reference object population: overrides every object's catalog radius / albedo
     #: (what the studio page calls "target_radius_m" / "target_albedo"); None keeps catalog values
     target_radius_m: Optional[float] = None
     target_albedo: Optional[float] = None
@@ -231,7 +231,7 @@ class EvalConfig:
                 "phasing_span_days": self.phasing_span() / DAY_S, "gain_kind": self.gain_kind, "acquisition": self.acquisition,
                 "target_radius_m": self.target_radius_m, "target_albedo": self.target_albedo,
                 "target_note": ("catalog per-object radius/albedo" if self.target_radius_m is None and self.target_albedo is None
-                                else "reference target population overrides the catalog physical parameters")}
+                                else "reference object population overrides the catalog physical parameters")}
 
 
 # ---------------------------------------------------------------------------
@@ -596,7 +596,7 @@ def _run_draw(d: int, seed_d: int, archs: Sequence[Architecture], object_ids: Se
     tracks = build_tracks(object_ids, t_nodes, q_psd=cfg.q_psd, sigma0_pos_km=cfg.initial_sigma_km,
                           sigma0_vel_kms=cfg.initial_sigma_vel_kms)
     if cfg.target_radius_m is not None or cfg.target_albedo is not None:
-        # reference target population (studio "target_radius_m / target_albedo"): overrides catalog physical parameters
+        # reference object population (studio "target_radius_m / target_albedo"): overrides catalog physical parameters
         tracks = [replace(tr, radius_m=float(cfg.target_radius_m) if cfg.target_radius_m is not None else tr.radius_m,
                           albedo=float(cfg.target_albedo) if cfg.target_albedo is not None else tr.albedo) for tr in tracks]
     burns = _sample_burns(rng, object_ids, t_nodes, model, cfg.horizon_days)

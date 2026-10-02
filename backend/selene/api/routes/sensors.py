@@ -7,12 +7,12 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
+from selene.api.routes.catalog import parse_utc, tdb_s_to_utc_iso
 from selene.dynamics.frames import DEMO_EPOCH_UTC
 from selene.sensors.observers import DEFAULT_OBSERVERS, orbit_summary
 from selene.sensors.reasons import ALL_REASONS, REASON_NAMES
 from selene.sensors.sites import DEFAULT_SITES, SPEC_DISCLAIMER
 from selene.sensors.visibility import visibility
-from selene.time import seconds_since_j2000_tdb
 
 router = APIRouter(prefix="/sensors", tags=["sensors"])
 
@@ -30,11 +30,15 @@ class SensorListResponse(BaseModel):
 class VisibilityResponse(BaseModel):
     sensor_id: str
     object_id: str
-    t0: str
+    t0: str                     # normalised ISO UTC (same as t0_utc; kept for existing clients)
     t1: str
+    t0_utc: str
+    t1_utc: str
     n: int
     fraction_visible: float
-    t_s: list[float]
+    t_s: list[float]            # TDB seconds past J2000 (alias tdb_s)
+    tdb_s: list[float]
+    epochs_utc: list[str]
     visible: list[bool]
     magnitude: list[Optional[float]]
     reasons: list[int]
@@ -95,10 +99,14 @@ def sensor_visibility(
     sensor = _SENSORS.get(sensor_id)
     if sensor is None:
         raise HTTPException(404, detail=f"unknown sensor {sensor_id!r}; known: {sorted(_SENSORS)}")
-    t0_s = float(seconds_since_j2000_tdb(t0))
-    t1_s = float(seconds_since_j2000_tdb(t1)) if t1 else t0_s + 7 * 86400.0
+    t0_s = parse_utc(t0, "t0")
+    t1_s = parse_utc(t1, "t1") if t1 else t0_s + 7 * 86400.0
+    if t1_s <= t0_s:
+        raise HTTPException(400, detail="t1 must be after t0")
     t_s = np.linspace(t0_s, t1_s, int(n))
     track = _object_track(object_id, t_s)
     res = visibility(sensor, track, t_s, radius_m, albedo).as_dict()
     res.pop("sensor_id", None)
-    return VisibilityResponse(sensor_id=sensor_id, object_id=object_id, t0=t0, t1=t1 or "", n=int(n), **res)
+    t0_iso, t1_iso = tdb_s_to_utc_iso(t0_s)[0], tdb_s_to_utc_iso(t1_s)[0]
+    return VisibilityResponse(sensor_id=sensor_id, object_id=object_id, t0=t0_iso, t1=t1_iso, t0_utc=t0_iso, t1_utc=t1_iso,
+                              n=int(n), tdb_s=list(res["t_s"]), epochs_utc=tdb_s_to_utc_iso(t_s), **res)

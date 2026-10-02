@@ -10,39 +10,44 @@ SELENE keeps custody of objects between geosynchronous orbit and the Moon (the "
 
 **Prerequisites.** Python 3.11+ (the repo's venv was built with 3.12.4) and Node 20+ (the repo uses Node 24.21 from `.tools/node`). All tooling is project-local: the Python venv lives in `.venv/` and Node in `.tools/node/bin` (both git-ignored); the Makefile prepends them to `PATH`, so nothing is installed globally.
 
-**Ephemeris kernels (one-time, not automated).** The DE440s kernel and GM file are read from `data/cache/` which is git-ignored and is **not** fetched by any Makefile target (the loader's error message says "run `make setup` to download it", but no download step exists yet — see §6). Place these two files from NAIF before running anything:
+> Documentation current as of the commit that introduced the API contract review fixes (see `git log -1 -- README.md`); the test count in §4 is the run recorded at that commit.
+
+**Ephemeris kernels (fetched by `make setup`).** The DE440s kernel and GM file live in `data/cache/` (git-ignored). `make setup` runs the `data` target, which downloads both from NAIF with `curl` when they are missing (≈ 33 MB once); `make data` alone re-checks them:
 
 ```
 data/cache/de440s.bsp      https://naif.jpl.nasa.gov/pub/naif/generic_kernels/spk/planets/de440s.bsp   (~31 MB)
 data/cache/gm_de440.tpc    https://naif.jpl.nasa.gov/pub/naif/generic_kernels/pck/gm_de440.tpc
 ```
 
-If `gm_de440.tpc` is missing, `constants.py` falls back to identical literal GM values; if `de440s.bsp` is missing, every ephemeris-model call raises.
+If `gm_de440.tpc` is missing, `constants.py` falls back to identical literal GM values. If `de440s.bsp` is missing the API still starts, `GET /api/health` reports `status: "degraded"` with the missing file under `data.required_missing`, and every route that needs the kernel answers **503** with the download hint (never a bare 500). Epochs outside the kernel coverage (1849-12-26 … 2150-01-22) are rejected with 400 naming the span.
 
 **Make targets** (verified against `Makefile`):
 
 | Target | What it does |
 |---|---|
-| `make setup` | `setup-py` (creates `.venv` with `python3 -m venv` if absent, `pip install -e backend[dev]`) + `setup-js` (`npm install` in `frontend/`). |
+| `make setup` | `setup-py` (creates `.venv` with `python3 -m venv` if absent, `pip install -e backend[dev]`) + `setup-js` (`npm install` in `frontend/`) + `data` (kernel download). `backend/pyproject.toml` carries compatible-release bounds on every dependency and `backend/requirements.lock` is the exact freeze the suite was validated with (`pip install -r backend/requirements.lock` reproduces it). |
+| `make data` | Downloads `de440s.bsp` and `gm_de440.tpc` into `data/cache/` if absent. |
 | `make dev` | Starts uvicorn on `http://127.0.0.1:8000` **and** Vite on `http://127.0.0.1:5173` (Vite proxies `/api` and `/openapi.json` to :8000). Ctrl-C stops both. |
 | `make api` / `make web` | Either half alone (`api` adds `--reload`). |
-| `make test` | `pytest -q -n auto` in `backend/` (all 40 test files). |
+| `make test` | `pytest -q -n auto` in `backend/` (45 test files; the `slow` marker is registered in `pyproject.toml`). |
 | `make test-fast` | `pytest -q -x -m "not slow"`. |
 | `make build` | `npm run build` (`tsc --noEmit && vite build`) and copies `frontend/dist` to `backend/selene/api/static/`. |
 | `make demo` | `build`, then a **single** uvicorn process on :8000 serving both the API and the built UI (SPA fallback to `index.html`). |
-| `make precompute` | Regenerates committed caches: `python -m selene.orbits.library --rebuild` (orbit library, ≈5 s on 8 cores), `python -m selene.objects.horizons --refresh` (needs network; `|| true`), `python -m selene.scenario.demo --rebuild` (**module not yet present**, see §6). |
+| `make precompute` | Regenerates committed caches: `python -m selene.orbits.library --rebuild` (orbit library, ≈5 s on 8 cores), `python -m selene.objects.horizons --refresh` (needs network; `|| true`), `python -m selene.scenario.demo --rebuild` (full demo bundle, ≈5 s warm; `--fast` for a reduced build, `--out` for a scratch path). |
 | `make clean` | Removes pytest cache, numba cache and `frontend/dist`. |
-| `docker compose up` | Multi-stage build (`node:24-slim` builds the UI, `python:3.12-slim` runs uvicorn on :8000) and mounts `./data` read-only into the container. The image copies `data/orbits`, `data/horizons` and `data/demo`; DE440s comes from the mounted `./data/cache`. |
+| `docker compose up` | Multi-stage build (`node:24-slim` builds the UI, `python:3.12-slim` runs uvicorn on :8000) and mounts `./data` read-only into the container. The image copies `data/orbits`, `data/horizons` and `data/demo`; DE440s comes from the mounted `./data/cache` (without it the container runs *degraded*, see the health route). **Not verified on this machine** (Docker is not installed, DECISIONS.md); known gaps are listed in §5. |
 
-**Offline operation.** After the two kernel files are in place the whole product runs with no network: DE440s + GM file (`data/cache/`), the precomputed periodic-orbit library (`data/orbits/`, 500 KB, 325 orbits), compact JPL Horizons samples for 25 spacecraft (`data/horizons/`, 4.4 MB), the JPL periodic-orbit catalogue subset used for validation (`data/orbits/jpl_reference.json`), and — once the scenario module lands — the precomputed demo bundle in `data/demo/`. astropy's IERS auto-download is disabled (`sensors/sites.py`), so site transforms use the bundled tables. The frontend is mock-first: every API call records whether it was served `LIVE` or `MOCK`, and the banner prints it verbatim, so no mock data can masquerade as backend physics (`frontend/README.md`).
+**Offline operation.** After `make setup` the whole product runs with no network: DE440s + GM file (`data/cache/`), the precomputed periodic-orbit library (`data/orbits/`, 500 KB, 325 orbits), compact JPL Horizons samples for 25 spacecraft (`data/horizons/`, 4.4 MB), the JPL periodic-orbit catalogue subset used for validation (`data/orbits/jpl_reference.json`), and the precomputed demo bundle (`data/demo/scenario.json`, 3.7 MB, 145 hourly frames, 33 events, analyst brief; committed). `GET /api/health` reports `offline: true` only when every one of these inputs is present (`data.present` lists them). astropy's IERS auto-download is disabled (`sensors/sites.py`), so site transforms use the bundled tables. The frontend is mock-first: every API call records whether it was served `LIVE` or `MOCK`, and the banner prints it verbatim, so no mock data can masquerade as backend physics (`frontend/README.md`).
 
 Typical session:
 
 ```bash
 make setup
-make test          # 424 passed, 1 skipped (see §5)
+make test          # see §4 for the recorded result
 make dev           # open http://127.0.0.1:5173/ops   (deep link: /ops?demo=1 auto-plays the story)
 ```
+
+**Environment variables.** `SELENE_CORS_ORIGINS` (comma-separated allowed origins; default is the local Vite/uvicorn origins only — the dev server proxies `/api` and the built UI is same-origin, so no cross-origin access is needed; `*` opens it), `SELENE_DEMO_SCENARIO` (serve/rebuild the demo bundle from another path), `SELENE_ALLOW_REBUILD=1` (enable `POST /api/demo/rebuild`, which otherwise answers 403 so a stray call cannot overwrite the committed bundle during a live demo), `NUMBA_CACHE_DIR`.
 
 ---
 
@@ -81,10 +86,15 @@ selene/
 │   │                       gains) · greedy (slot engine + greedy policy) · optimize (receding-horizon MILP via
 │   │                       scipy HiGHS, local search) · metrics (custody %, TSLO, random/round-robin/null baselines)
 │   │                       · scenario (object/sensor presets, slot grid)
-│   ├── architecture/       (being finalised) candidate sensor orbits + Monte Carlo scoring
-│   ├── scenario/           (being finalised) scripted 2-minute demo story + analyst brief
-│   └── api/                app (FastAPI factory, CORS, static SPA mount) · schemas · routes/* (table below)
-├── backend/tests/          40 pytest files, one per module/route
+│   ├── architecture/       candidates (6 platform orbits, 4 preset architectures, aperture -> limiting magnitude) ·
+│   │                       montecarlo (common-random-number draws, coverage %, greedy-tasker custody %, revisit,
+│   │                       surrogate-NIS detection latency, 4-process pool)
+│   ├── scenario/           demo (the 2-minute story computed end to end by the engines, hourly bundle) · brief
+│   │                       (template analyst brief with glossary, no LLM)
+│   └── api/                app (FastAPI factory, CORS, 503/400 error shaping, SPA mount that never shadows /api) ·
+│                           observer_spec (validated ad-hoc space-observer model) · schemas · routes/* (table below)
+├── backend/tests/          45 pytest files, one per module/route (+ test_api_contract.py for the API conventions)
+├── backend/requirements.lock   exact dependency freeze the suite was validated with
 ├── frontend/src/
 │   ├── pages/              OpsPage (/ops, default) · ArchitecturePage (/architecture) · CoveragePage (/coverage)
 │   ├── scene/              SceneRoot, Bodies (true-scale day/night Earth & Moon, L-points), OrbitFamilies, Objects
@@ -100,7 +110,7 @@ selene/
 │   ├── cache/              de440s.bsp, gm_de440.tpc, raw Horizons responses   (git-ignored)
 │   ├── orbits/             orbits.parquet, families.json, jpl_reference.json, README.md   (committed)
 │   ├── horizons/           <id>.json × 25 + index.json   (committed)
-│   └── demo/               precomputed demo bundle   (empty until the scenario module lands)
+│   └── demo/               scenario.json (3.7 MB) + scenario_meta.json — the committed full-fidelity demo bundle
 ├── Makefile · Dockerfile · docker-compose.yml
 └── PLAN.md · PROGRESS.md · DECISIONS.md · PITCH.md · README.md · FINAL_REPORT.md (at completion)
 ```
@@ -109,11 +119,17 @@ Frontend stack: Vite 6, React 18.3, TypeScript 5.9, react-three-fiber 8 + drei 9
 
 ### API
 
-All routes are mounted under `/api`; routers are registered lazily from `ROUTE_MODULES` in `backend/selene/api/routes/__init__.py` so a missing module never breaks the app. Conventions (`api/schemas.py`): positions km, velocities km/s, Earth-centred GCRF unless a field says `rot`/`nd` (nondimensional rotating frame) or `moon` (Moon-centred, GCRF axes); times are ISO-8601 UTC and/or TDB seconds past J2000; Δv in m/s; horizons in hours. Floats are rounded to 9 significant figures by the routes.
+All routes are mounted under `/api`; routers are registered lazily from `ROUTE_MODULES` in `backend/selene/api/routes/__init__.py` so a missing module never breaks the app (`/api/health` → `routers_loaded` says which loaded, `routes` lists every path). Conventions (`api/schemas.py`): positions km, velocities km/s, Earth-centred GCRF unless a field says `rot`/`nd` (nondimensional rotating frame) or `moon` (Moon-centred, GCRF axes); Δv in m/s; horizons in hours. Floats are rounded to 9 significant figures by the routes.
+
+**Time conventions.** Every ISO timestamp the API emits carries a trailing `Z` (`2026-03-01T00:00:00.000Z`) — a bare `YYYY-MM-DDTHH:MM:SS` is parsed as *local* time by `new Date()` in browsers. Requests accept ISO UTC with or without `Z`. Absolute-time arrays are named `epochs_utc` (ISO) and `tdb_s` (TDB seconds past J2000); routes that historically used `t_s` (sensors, OD, maneuver, tasking) keep it as an alias of `tdb_s`, and `/api/coverage` `per_time[].t` is kept next to `tdb_s`/`utc` for existing clients. Request windows are echoed normalised as `t0_utc`/`t1_utc` (always populated, including defaults). The demo bundle is the one place with *relative* times: `t` (= `t_rel_s`) is seconds since `meta.t0_utc`, documented in `meta.time_fields`.
+
+**Errors.** Unknown `/api/...` paths are JSON 404s (never the SPA shell), `/api/x/` redirects to `/api/x`, unknown methods on unknown paths are 404 too. Unparseable epochs, reversed windows and epochs outside the DE440s coverage are 400; unknown ids are 404/400 with an unquoted `detail`; pydantic rejects unknown keys (`extra='forbid'`) and invalid ad-hoc sensor specs with field-level 422s; a missing kernel is 503 (`status: degraded`, hint).
+
+**Request budgets** (every route is synchronous; shapes that are individually in-bounds but jointly unbounded are capped — clamps are reported under `caps_applied`, rejections are 400 with the rule): OD `epochs × sensors ≤ 20 000`, `max_obs ≤ 600`, particle export `frames ≤ 400` and `frames × max_export ≤ 120 000` (clamped); reachability `samples ≤ 20 000` and, with `include_paths`, `samples × path steps ≤ 150 000` (`path_dt_h` clamped up); architecture `architectures × slots ≤ 6 000` per draw (400) and `n_mc` clamped to the work-units and per-worker budgets; maneuver `epochs × max_obs_per_epoch ≤ 2 000`, span ≤ 30 d (+60 s UTC/TDB tolerance); tasking `time_budget_s ≤ 30`; orbit families `members × n_samples ≤ 200 000`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/health` | `{status, version, offline, ephemeris}` — `ephemeris` names the DE440s file if present. |
+| GET | `/api/health` | `{status: ok\|degraded, version, offline, offline_meaning, ephemeris, data{present, missing, required_missing, paths}, routers_loaded, routes, cors_origins}` — `offline` is computed (all cached inputs present), `degraded` when the kernel or orbit library is missing. |
 | GET | `/api/catalog/objects` | Catalog envelope: epoch, counts, disclaimer, 11 SIMULATED + 7 Horizons objects (`?kind=simulated\|horizons`). |
 | GET | `/api/catalog/objects/{id}` | One object summary (orbit type, actor, physical assumptions, state at the demo epoch). |
 | GET | `/api/catalog/objects/{id}/trajectory` | Truth / Horizons track over `[t0, t1]` (default 7 d), `n ≤ 5000`, `frame = gcrf_km \| rot_nd \| moon_km`. |
@@ -121,19 +137,21 @@ All routes are mounted under `/api`; routers are registered lazily from `ROUTE_M
 | GET | `/api/orbits/records/{id}` | One library record (IC, period, Jacobi, stability, geometry, tags) + samples. |
 | GET | `/api/ephemeris/bodies` | DE440s Earth/Moon/Sun positions on a UTC grid plus, per epoch, the exact rotating-frame basis `R`, `d_km`, `r_bary_km` and L1–L5, so the UI's frame toggle is exact. |
 | GET | `/api/sensors` | The notional network: 9 ground sites + 6 space observers with orbit summaries and the specification disclaimer. |
-| GET | `/api/sensors/{id}/visibility` | Per-epoch visibility of a catalog object from one sensor with reason bits, magnitude, range. **Currently returns 500** (duplicate `sensor_id` kwarg when building `VisibilityResponse`, `routes/sensors.py:103`); nothing in the UI depends on it yet. |
+| GET | `/api/sensors/{id}/visibility` | Per-epoch visibility of a catalog object from one sensor with reason bits, magnitude, range; `t0_utc`/`t1_utc`, `epochs_utc`, `tdb_s` (= `t_s`); 400 on bad or reversed windows. |
 | GET | `/api/coverage/presets` | The 8 network presets (`ground_only`, `ground_plus_geo`, `…_l1_halo`, `…_l2_halo`, `…_dro`, `…_nrho`, `space_only`, `full`). |
-| POST | `/api/coverage` | Coverage heatmap of the cislunar volume for a network over `[t0, t1]` with per-cell dominant blind-spot reason (<1.5 s for the default 2-D grid). |
+| POST | `/api/coverage` | Coverage heatmap of the cislunar volume for a network over `[t0, t1]` with per-cell dominant blind-spot reason (<1.5 s for the default 2-D grid). `network` is a preset name or `{ground_ids, space}` where `space` holds observer ids or validated ad-hoc specs (`id`, `platform_orbit` required); unknown request keys are rejected. |
 | GET | `/api/od/presets` | Sensor sets and defaults for the OD UI. |
-| POST | `/api/od/run` | Synthetic end-to-end OD on a catalog object: simulate RA/Dec observations (blind epochs and their reasons returned) → IOD → batch WLS → UKF/EKF → particle cloud without further observations; reports honest `truth_error_km`. ≈1–5 s. |
+| POST | `/api/od/run` | Synthetic end-to-end OD on a catalog object: simulate RA/Dec observations (blind epochs and their reasons returned) → IOD → batch WLS → UKF/EKF → particle cloud without further observations; reports honest `truth_error_km`, `caps_applied` and `limits`. ≈1–5 s. |
 | POST | `/api/maneuver/detect` | Truth (+ optional SIMULATED injected burn) → measurements → filter → health gate → NIS / windowed-NIS / gap re-fit / CUSUM / NEES → Δv estimate. `status ∈ {no_observations, insufficient_updates, filter_not_converged, filter_inconsistent, quiet, maneuver_declared}`. Horizons objects refused (400). |
 | GET | `/api/reachability/regions` | Region definitions and display geometry (`gateway_radius_nd`, `nrho_tube_km` configurable). |
 | GET | `/api/reachability/ladder` | The Δv magnitude ladder for a budget. |
-| POST | `/api/reachability` | Δv-sampled reachable set over 24–168 h, per-region hit fraction and earliest arrival, envelope, and per-sensor re-acquisition pointing hints. ≈0.3 s. |
+| POST | `/api/reachability` | Δv-sampled reachable set over 24–168 h, per-region hit fraction and earliest arrival (gateways are **neck transits**, §3.8), envelope, per-sensor re-acquisition pointing hints, `config.caps_applied`. ≈0.3 s (≈5 s at the 20 000-sample cap). |
 | GET | `/api/tasking/presets` | Sensor presets (`mixed_9` = `default`, plus the coverage presets), default object list, methods. |
-| POST | `/api/tasking/schedule` | Sensor tasking over a slot grid: `method ∈ {greedy, milp, random, round_robin, compare}`, `gain_kind ∈ {trace, logdet, maxeig}`, `acquisition ∈ {fov, irf, none}`; returns schedule, custody %, mean TSLO, covariance-trace series, timings. ≈2 s. |
-| POST | `/api/architecture/evaluate` | *(being finalised)* Monte Carlo scoring of candidate architectures — PLAN §5. |
-| GET | `/api/demo/scenario` | *(being finalised)* `{meta, frames, events, brief}` for the 2-minute story — PLAN §5. |
+| POST | `/api/tasking/schedule` | Sensor tasking over a slot grid: `method ∈ {greedy, milp, random, round_robin, compare}`, `gain_kind ∈ {trace, logdet, maxeig}`, `acquisition ∈ {fov, irf, none}`, `extra_sensors` (validated ad-hoc space observers); returns schedule, custody %, mean TSLO, covariance-trace series, timings. ≈2 s greedy, ≤ `time_budget_s` (≤ 30 s) for the MILP. |
+| GET | `/api/architecture/presets` | Candidate platforms, the four preset architectures, limits/budget rule, metric definitions, method notes. |
+| POST | `/api/architecture/evaluate` | Monte Carlo scoring of up to 8 architectures (coverage %, custody %, revisit, detection latency with censored variants) with common random numbers; `n_mc` clamped to the budgets and reported in `meta.caps_applied`; 4-process pool. ≈2–10 s for the presets. |
+| GET | `/api/demo/scenario` · `/scenario/meta` · `/brief` | The committed 6-day story: `{meta, frames (145 hourly), events (33), metrics, brief}`; served from disk in ≈0.2 s and cached in memory. |
+| POST | `/api/demo/rebuild?fast=true` | Rebuilds the bundle synchronously (reduced samples); **403 unless `SELENE_ALLOW_REBUILD=1` or `SELENE_DEMO_SCENARIO` is set**, so a live demo cannot be overwritten by accident. |
 
 Interactive docs: `http://127.0.0.1:8000/docs`.
 
@@ -224,23 +242,23 @@ Tests on a `FilterRun` (`maneuver/detection.py`), each with a χ² p-value: (a) 
 
 ### 3.8 Reachability
 
-Impulsive burns Δv = m·û at epoch t_b on the nominal coasting trajectory, then ballistic coast (`reachability/sampling.py`): û from a Fibonacci sphere, m from a **fixed absolute ladder** (2, 5, 10, 20, 50, 100, 200, 500, 1000 m/s, truncated at the budget, plus the budget) so smaller-budget sample sets are subsets of larger ones and region reachability is monotone by construction, t_b ∈ {0, +6, +12, +24 h}. All N samples integrate as one 6N-dimensional DOP853 system with the numba ephemeris RHS; burns are velocity discontinuities at segment boundaries; lunar/Earth impact and escape terminate rows by event. Samples are classified against 9 named regions (`reachability/regions.py`): `l1_gateway`, `l2_gateway` (0.05 nd ≈ 19 200 km spheres), `nrho_corridor` (10 000 km tube around the library's 9:2 NRHO), `south_pole_approach`, `llo_shell`, `llo_inner`, `geo_belt_return`, `earth_return_escape`, `lunar_impact`; per region the hit fraction and earliest arrival are reported, and `refine_min_dv` bisects the minimum magnitude that reaches a region. `tasking_hint.py` runs the active samples through the visibility model per sensor and step to produce the best boresight, p50/p90 spread, single-field capture fraction and tile count — the bridge to tasking.
+Impulsive burns Δv = m·û at epoch t_b on the nominal coasting trajectory, then ballistic coast (`reachability/sampling.py`): û from a Fibonacci sphere, m from a **fixed absolute ladder** (2, 5, 10, 20, 50, 100, 200, 500, 1000 m/s, truncated at the budget, plus the budget) so smaller-budget sample sets are subsets of larger ones and region reachability is monotone by construction, t_b ∈ {0, +6, +12, +24 h}. All N samples integrate as one 6N-dimensional DOP853 system with the numba ephemeris RHS; burns are velocity discontinuities at segment boundaries; lunar/Earth impact and escape terminate rows by event. Samples are classified against 9 named regions (`reachability/regions.py`): `l1_gateway`, `l2_gateway` — **neck transits**, not proximity: a path counts only if it enters the 0.05 nd (≈ 19 200 km) ball around the libration point on one side of the plane x = x_L and leaves it on the other, i.e. changes Hill realm through the neck (a passage still inside the ball at the horizon counts once it has crossed the plane). This matters because large DROs straddle both points geometrically: the demo DRO (perilune 63 700 km) sweeps through both balls every revolution, comes within 1 400 km of L1 and dips 4 000 km past the x = x_L1 plane while remaining a stable non-transiting orbit, so a proximity sphere flagged the quiet orbit as "entering the gateway" twice a month. Then `nrho_corridor` (10 000 km tube around the library's 9:2 NRHO), `south_pole_approach`, `llo_shell`, `llo_inner`, `geo_belt_return`, `earth_return_escape`, `lunar_impact`; per region the hit fraction and earliest arrival are reported, and `refine_min_dv` bisects the minimum magnitude that reaches a region. `tasking_hint.py` runs the active samples through the visibility model per sensor and step to produce the best boresight, p50/p90 spread, single-field capture fraction and tile count — the bridge to tasking.
 
 ### 3.9 Sensor tasking
 
 A linear-covariance engine for many objects at once (`tasking/information.py`): each object's 6×6 P is propagated between 20-minute slot nodes with the ephemeris STM chain plus process noise and updated by the linearised angles-only measurement in Joseph form; acquisition probability p = 1 − exp(−n_tiles·θ_f²/(2σ_θ²)) (Rayleigh CDF of the on-sky prediction error against the FOV half-angle) gives the expected posterior P⁺ = p·P⁺_det + (1−p)·P⁻. Gains: position-trace reduction (default, because custody is a position criterion), log-det mutual information ½ ln(det P⁻/det P⁺), or max-eigenvalue reduction.
 
 - **Greedy** (`tasking/greedy.py`): per slot, per sensor, pick the visible and slew-feasible object maximising priority·gain·(1 + w·TSLO/24 h) given updates already applied this slot (classic submodular sensor management, ≥ (1 − 1/e) of optimal for log-det over a fixed set).
-- **MILP** (`tasking/optimize.py`): receding horizon of 4 slots solved with `scipy.optimize.milp` (HiGHS); the surrogate freezes covariances at the window start and models diminishing returns with rank weights f_j[m] (ratio of the m-th sequential marginal gain to the m-th best stand-alone gain) plus a revisit bonus, with one-object-per-sensor-per-slot and slew constraints; local-search fallback and per-request time budget. The surrogate is labelled as such in the response.
+- **MILP** (`tasking/optimize.py`): receding horizon of 4 slots solved with `scipy.optimize.milp` (HiGHS); the surrogate freezes covariances at the window start and models diminishing returns with rank weights f_j[m] (ratio of the m-th sequential marginal gain to the m-th best stand-alone gain) plus a revisit bonus, with one-object-per-sensor-per-slot and slew constraints; local-search fallback and per-request time budget (≤ 30 s, synchronous). The surrogate is labelled as such in the response. **Honest status:** the MILP beats greedy on its *own surrogate objective* but on a discriminating scenario (500 km / 2 m/s prior, 48 h, `mixed_9`) it is *worse* on every realised metric (custody 88.3 % vs 91.8 %, summed trace 300 k vs 228 k km², mean TSLO 1.77 h vs 1.27 h); PLAN M7's "MILP ≥ greedy" is satisfied only on the surrogate, and the greedy policy is the one the demo and the architecture studio use.
 - **Metrics** (`tasking/metrics.py`): custody % = fraction of slot nodes with √tr(P_pos) < 100 km (configurable), mean time since last observation, utilisation, and `random`, `round_robin` and `null` (no observations) baselines run through the identical engine. The default scenario is 8 xGEO objects × the 9-sensor `mixed_9` network × 48 h from the demo epoch; `preset='ground_only'` honestly reproduces the near-full-Moon case in which no ground site can see any of them.
 
-### 3.10 Architecture Monte Carlo (being finalised)
+### 3.10 Architecture Monte Carlo
 
-Per PLAN §2.8: candidate sensor orbits from the library (GEO, L1/L2 halo, DRO, resonant) are composed into architectures; each is scored by Monte Carlo over object sets and maneuver epochs with the same coverage, tasking and detection engines above, reporting coverage %, custody %, revisit time and maneuver-detection latency (mean/95th), reproducible by seed. The `architecture/` package and `POST /api/architecture/evaluate` are being written concurrently with this README; the frontend Architecture Studio page currently runs against its mock model and says so in the banner.
+`architecture/candidates.py` defines six candidate platforms (GEO, L1 halo, L2 southern halo, DRO, 9:2 NRHO, 3:1 resonant — all library orbits mapped through the instantaneous frame) with an aperture → limiting-magnitude rule (m_lim = 18.5 + 5 log10(D/0.5 m), clipped to [14, 23]) and four preset architectures. `architecture/montecarlo.py` scores architectures with **common random numbers** (identical start-epoch offsets, injected burns and measurement-noise draws per Monte Carlo draw, so small `n_mc` still ranks fairly): coverage % (object × slot nodes visible to ≥ 1 sensor), custody % from the greedy tasker's linear-covariance run against a common stale prior (plus the zero-observation reference `custody_pct_null`), revisit time (mean and censored p95), and maneuver-detection latency from a documented **linear-STM displacement + sampled-NIS surrogate** (the burn's displacement is created at the burn node and tested with the same χ² gate as the detector; its false-alarm rate equals α by construction — a bookkeeping surrogate, not a UKF calibration; `meta.method_notes` says so). Draws run on a persistent 4-process spawn pool with bit-identical results to the sequential path. Measured with `n_mc=4, horizon 3 d, seed 0`: ground only 14.0 % coverage / 53.7 % custody; ground + 2 GEO 37.6 / 74.4; ground + L2 halo 74.0 / 90.2; ground + DRO + L1 halo 75.9 / 91.6 (`tests/test_architecture_route.py` prints the values of its own configuration).
 
-### 3.11 Demo scenario and analyst brief (being finalised)
+### 3.11 Demo scenario and analyst brief
 
-Per PLAN: `scenario/demo.py` scripts the 2-minute story (DRO object → unannounced burn → ground telescopes lose it in lunar glare, cloud balloons → reachability shows the L1 gateway and the notional allied relay's NRHO corridor → the tasker redirects the DRO observer → custody regained, Δv characterised) into `{meta, frames, events, brief}`, precomputed to `data/demo/` and served by `GET /api/demo/scenario`; `scenario/brief.py` renders the plain-English brief from the computed numbers (template, no LLM). Until it lands, `/ops?demo=1` plays the frontend's mock scenario, which computes visibility with a port of the same observing rules but emulates the filter (`frontend/README.md`).
+`scenario/demo.py` computes the 2-minute story end to end with the engines above (nothing is scripted numerically; the hand-chosen inputs — epoch, 30 m/s burn magnitude, 100 m/s planning budget, custody thresholds — are documented in `meta.epoch_choice_rationale`, `meta.burn_rationale` and `meta.assumptions`): routine 2-h ground tracklets on `SIM-DRO-01` → an unannounced 30 m/s burn at 2026-02-25T08:30Z aimed along the sampled direction passing closest to L1 → the one post-burn ground tracklet trips the NIS gate (+1.5 h) and the filter prior is re-opened for an unknown impulsive Δv → the ground network goes blind (lunar glare at 61 % illumination, with the non-glare hours counted separately) and the particle cloud balloons past 1 000 km (custody LOST +10.5 h) → reachability from the last good state lists the regions a 100 m/s budget **newly** opens (L1 neck transit from 10 m/s, L2 neck, the relay's NRHO corridor only at the budget limit) and never flags geometry the quiet orbit visits anyway → the greedy tasker (log-det gain, FOV acquisition model, 25-field mosaic budget) redirects the DRO observer to the reachable-set centroid and every tasked look is verified against the truth → custody regained +1 h → Δv characterised to +0.07 % / 0.11° → `scenario/brief.py` renders the analyst brief (template, glossary first, no LLM, SIMULATED footer). The SIMULATED truth passes ≈ 260 km from L1 (closest approach refined on the dense solution; the hourly grid says 508 km) but **does not transit the L1 neck** — it stays in the lunar realm — and the bundle says so (`closest_approach` event, `truth_geometry.l1_transit = false`) instead of claiming a gateway entry. Time fields: `t` = `t_rel_s` seconds since `meta.t0_utc`, `t_utc` ISO (`meta.time_fields`). The bundle (`data/demo/scenario.json`, 3.7 MB, 145 frames, 33 events) is committed and served by `GET /api/demo/scenario` in ≈ 0.2 s; `/ops?demo=1` plays it.
 
 ---
 
@@ -252,13 +270,13 @@ Run from the repo root (`make test`) or directly:
 cd backend && ../.venv/bin/python -m pytest -q -p no:warnings -n 8
 ```
 
-Result on 2026-10-02 (commit `d9787c3`, macOS, Python 3.12.4):
+Result on 2026-10-02 (working tree after the API contract review fixes on top of `c5eaf85`, macOS, Python 3.12.4, 45 test files):
 
 ```
-424 passed, 1 skipped in 21.57s
+511 passed, 1 skipped in 24.97s
 ```
 
-(The skip is a network-only Horizons discovery test.) Key measured numbers, each traceable to a test or docstring:
+(The skip is a network-only Horizons discovery test. `tests/test_api_contract.py` covers the routing, readiness, 400/503, budget, timestamp, error-detail, rebuild-gating and CORS conventions of §2.) Key measured numbers, each traceable to a test or docstring:
 
 | Quantity | Measured / asserted | Where |
 |---|---|---|
@@ -303,8 +321,11 @@ Honest list, drawn from module docstrings and DECISIONS.md:
 - **Horizons objects** are served only within their cached spans (demo window 2026-02-15…2026-03-31 for 7 contemporaneous spacecraft; historical windows for 18 more); interpolation error is reported per object (`interp_leave_one_out_max_km`).
 - **Custody metric saturation**: with the API default (10 km prior, 48 h) every object stays "in custody" without observations, so `custody_pct` only discriminates policies when the prior is stale or sensors are scarce; `null_custody_pct` and `custody_pct_observed` are reported so this is visible.
 - **The MILP objective is a surrogate** (frozen covariances, rank-weighted diminishing returns) and is labelled as such; it is compared with greedy on the same objective.
-- **Known defects / gaps at this commit**: `GET /api/sensors/{id}/visibility` returns 500 (duplicate `sensor_id` kwarg); `make setup` does not download DE440s although the loader's error message says it does; `make precompute` references `selene.scenario.demo`, which does not exist yet; `data/demo/` is empty; the `architecture` and `scenario` packages are empty stubs; the health route reports `offline: true` unconditionally; PROGRESS.md states 342 orbit records while the committed library holds 325.
-- **Scope**: no real-time telescope control, no conjunction assessment, no attribution, no targeting.
+- **Covariance realism in the demo is single-run**: `metrics.detection.nees_*` compares one sequential run's mean NEES with a band that assumes independent epochs; successive errors are correlated, so a below-band mean is only *indicative* of a conservative covariance (`nees_note` in the bundle; an 8-seed Monte Carlo through `/api/od/run` with the demo configuration gives pooled NEES 5.1–5.6, i.e. consistent). The calibrated check is `od/realism.py` / `tests/test_od_realism.py`.
+- **Synchronous API**: every route runs in the request; the budgets in §2 keep the worst in-bounds request to ≈ 10–15 s on a laptop (architecture 8 architectures × 7 d at 5-min slots and 300 s MILP budgets are rejected rather than queued). An async job model is a roadmap item.
+- **Deployment hardening**: CORS defaults to the local origins only (`SELENE_CORS_ORIGINS` widens it); there is no authentication anywhere, which is fine for the offline demo but not for the accreditation path in PITCH.md. `POST /api/demo/rebuild` is disabled unless explicitly enabled.
+- **Docker is unverified** (no Docker on the build machine): the repository has no `.dockerignore`, so `COPY frontend/ ./` would overlay the host's macOS-native `node_modules` onto the Linux install and the build context ships `.venv`/`.tools`/`data/cache`; the image copies `data/orbits`, `data/horizons` and `data/demo` but not `data/cache`, so a plain `docker run` starts *degraded* (503 on the physics routes, visible in `/api/health`) until `data/` is mounted; and the compose read-only `./data` mount makes the rebuild route fail (it is disabled by default anyway). The fixes (a `.dockerignore`, `COPY data/cache` or `make data` in the build stage, `pip install -r backend/requirements.lock`, a writable scratch path for rebuilds) are listed in FINAL_REPORT.md as follow-ups.
+- **Scope**: no real-time telescope control, no conjunction assessment, no attribution, no targeting. Real JPL Horizons objects carry the role "reference / custody object"; the word *target* is used only in the sensor-geometry code, never for a named spacecraft.
 
 ---
 

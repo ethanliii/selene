@@ -117,6 +117,17 @@ class Ephemeris:
             self._segments[key] = self.kernel[a, b]
         return self._segments[key]
 
+    def span_tdb_s(self) -> tuple[float, float]:
+        """(start, end) of the kernel's Earth-Moon coverage as TDB seconds past J2000 (DE440s: 1849-12-26 .. 2150-01-22).
+
+        Epochs outside this span make jplephem raise ``OutOfRangeError``; the API validates request
+        epochs against it so the answer is a 400 with the valid span rather than a 500.
+        """
+        segs = [self._segment(a, b) for (a, b), _ in self._terms("moon", "earth")]
+        start = max(float(s.start_jd) for s in segs)
+        end = min(float(s.end_jd) for s in segs)
+        return (start - J2000_JD) * DAY_S, (end - J2000_JD) * DAY_S
+
     def _terms(self, body: str, center: str) -> list[tuple[tuple[int, int], int]]:
         body, center = body.lower(), center.lower()
         for name in (body, center):

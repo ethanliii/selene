@@ -2,6 +2,7 @@ services:
   selene:
     build: .
     ports: ["8000:8000"]
-    volumes:
-      - ./data:/app/data:ro
-    command: python -m uvicorn selene.api.app:app --host 0.0.0.0 --port 8000
+    # Optional: reuse locally cached JPL kernels instead of the ones fetched at build time.
+    # volumes:
+    #   - ./data/cache:/app/data/cache:ro
+    command: python -m uvicorn selene.api.app:app --host 0.0.0.0 --port 8000 --app-dir /app/backend

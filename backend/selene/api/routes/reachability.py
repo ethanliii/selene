@@ -14,7 +14,7 @@ import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
-from selene.api.routes.catalog import parse_utc, round_floats, tdb_s_to_utc_iso
+from selene.api.routes.catalog import err_detail, parse_utc, round_floats, tdb_s_to_utc_iso
 from selene.objects.catalog import get_catalog
 from selene.reachability.regions import default_regions
 from selene.reachability.sampling import (
@@ -40,8 +40,12 @@ DISCLAIMER = (
 #: ladder and fewer at small budgets (the direction set is kept budget-independent so results nest).
 _LADDER_LEVELS_FOR_SIZING = 8
 #: Hard server-side cap on the ACTUAL sample count n_dirs x n_magnitudes x n_epochs (one stacked
-#: 6N ODE; ~20 000 rows x 168 h is ~40 s of propagation on a laptop and a ~4 MB payload with paths).
+#: 6N ODE; ~20 000 rows x 168 h is ~15-40 s of propagation on a laptop and ~1.5 MB without paths).
 MAX_TOTAL_SAMPLES = 20_000
+#: With ``include_paths`` every sample carries (horizon_h / path_dt_h + 1) points in two frames at
+#: ~60 bytes per point: 20 000 x 169 points was a 121 MB body.  ``path_dt_h`` is clamped UP so the
+#: total stays below this (~9 MB; reported in ``config.caps_applied``); endpoints are always complete.
+MAX_PATH_POINTS = 150_000
 
 
 class ReachabilityRequest(BaseModel):
@@ -138,16 +142,26 @@ def reachability(req: ReachabilityRequest):
                                  cr_area_mass=cr_am)
         sensors = resolve_sensors(req.sensors) if req.sensors is not None else None
     except (ValueError, KeyError, TypeError) as err:
-        raise HTTPException(400, detail=str(err))
+        raise HTTPException(400, detail=err_detail(err))
     # hard cost guard on the ACTUAL sample count (n_dirs x n_magnitudes x n_epochs)
     per_dir = len(cfg.magnitudes()) * len(cfg.burn_epochs_h)
     n_total = cfg.n_dirs * per_dir
+    caps: list[str] = []
     if n_total > MAX_TOTAL_SAMPLES:
         if req.n_dirs is not None:
             raise HTTPException(400, detail=f"n_dirs={req.n_dirs} x {per_dir} (magnitudes x epochs) = {n_total} samples "
                                             f"exceeds the server cap of {MAX_TOTAL_SAMPLES}; lower n_dirs, the budget "
                                             f"ladder or the number of burn epochs")
         cfg.n_dirs = max(1, MAX_TOTAL_SAMPLES // per_dir)
+        caps.append(f"n_dirs -> {cfg.n_dirs} ({n_total} samples > {MAX_TOTAL_SAMPLES})")
+    if req.include_paths:
+        n_act = cfg.n_dirs * per_dir
+        n_pts = n_act * (int(np.floor(cfg.horizon_h / cfg.path_dt_h + 1e-9)) + 1)
+        if n_pts > MAX_PATH_POINTS:
+            steps_ok = max(1, MAX_PATH_POINTS // n_act - 1)
+            new_dt = max(cfg.grid_dt_h, np.ceil(cfg.horizon_h / steps_ok / cfg.grid_dt_h) * cfg.grid_dt_h)
+            caps.append(f"path_dt_h {cfg.path_dt_h:g} -> {new_dt:g} h ({n_pts} path points > {MAX_PATH_POINTS})")
+            cfg.path_dt_h = float(new_dt)
     regs = default_regions(gateway_radius_nd=req.gateway_radius_nd, nrho_tube_km=req.nrho_tube_km)
     try:
         rs = compute_reachability(s0, t0_s, cfg, object_id=req.object_id, regions=regs)
@@ -233,7 +247,8 @@ def reachability(req: ReachabilityRequest):
                "cr_area_mass_m2_kg": cfg.cr_area_mass, "rtol": cfg.rtol, "atol_km": cfg.atol,
                "gateway_radius_nd": req.gateway_radius_nd, "nrho_tube_km": req.nrho_tube_km,
                "n_samples_requested": req.n_samples, "n_samples_actual": rs.n_samples,
-               "n_dirs_clamped": bool(n_total > MAX_TOTAL_SAMPLES), "max_total_samples": MAX_TOTAL_SAMPLES}
+               "n_dirs_clamped": bool(n_total > MAX_TOTAL_SAMPLES), "max_total_samples": MAX_TOTAL_SAMPLES,
+               "max_path_points": MAX_PATH_POINTS, "caps_applied": caps}
     return ReachabilityResponse(
         object=rs.meta["object"],
         t0_utc=tdb_s_to_utc_iso(t0_s)[0],

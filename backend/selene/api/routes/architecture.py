@@ -60,11 +60,17 @@ MAX_HORIZON_DAYS = 7.0
 MAX_ARCHITECTURES = 8
 MAX_SPACE_SENSORS = 8
 #: budget on architectures × draws × slots.  Measured sequential cost ≈ 2.2 ms per unit on a laptop
-#: (4 presets × 8 draws × 144 slots = 4608 units ≈ 10 s; 4 × 9 × 504 = 18144 units ≈ 34-40 s), so
-#: 18 000 keeps every request under ~45 s even on the sequential fallback and lets the 4 presets
-#: run 9 draws at the 7-day cap; with the default 4-process pool the same requests take 2.3 s
-#: (4608 units, warm) and 11 s (18 144 units, warm); a cold pool adds ≈ 2-3 s once per server.
+#: (4 presets × 8 draws × 144 slots = 4608 units ≈ 10 s; 4 × 9 × 504 = 18144 units ≈ 34-40 s).
+#: Draws are the unit of parallelism, so with the default 4-process pool a request whose draws
+#: spread over the workers runs ~4x faster (4608 units ≈ 2.3 s warm, 18 144 units ≈ 11 s warm;
+#: a cold pool adds ≈ 2-3 s once per server) — but a request that is clamped to n_mc = 1 cannot be
+#: parallelised at all, which is why the per-worker budget below exists.
 MAX_WORK_UNITS = 18_000
+#: budget on architectures × slots × ceil(draws / workers), i.e. the units ONE worker executes
+#: sequentially (≈ 2.2 ms each): 6 000 ≈ 13 s.  A request shape whose architectures × slots alone
+#: exceeds it (e.g. 8 architectures × 7 d × 5-min slots = 16 128) is rejected with 400 — it would
+#: take ~35 s even at n_mc = 1 — rather than clamped.
+MAX_UNITS_PER_WORKER = 6_000
 TRUTH_WINDOW_DAYS = TRUTH_WINDOW_S[1] / 86400.0
 
 DISCLAIMER = ("All objects are SIMULATED notional spacecraft and every injected maneuver is attributed to a 'notional actor'; "
@@ -182,8 +188,8 @@ class ArchitectureEvaluateRequest(BaseModel):
                                                description=f"t0 offset span; default = {TRUTH_WINDOW_DAYS:.0f} d - horizon; "
                                                            f"span + horizon must stay <= {TRUTH_WINDOW_DAYS:.0f} d")
     target_radius_m: Optional[float] = Field(None, gt=0.0, le=50.0,
-                                             description="reference target population: overrides every object's catalog radius")
-    target_albedo: Optional[float] = Field(None, gt=0.0, le=1.0, description="reference target population: overrides catalog albedo")
+                                             description="reference object population: overrides every object's catalog radius")
+    target_albedo: Optional[float] = Field(None, gt=0.0, le=1.0, description="reference object population: overrides catalog albedo")
     workers: int = Field(4, ge=1, le=4, description="parallel draws; 'process' uses a persistent spawn pool, bit-identical results")
     executor: Literal["process", "thread"] = "process"
     include_draws: bool = False
@@ -240,10 +246,19 @@ def _preset_payload(a: Architecture) -> dict:
     return a.as_dict()
 
 
-def max_n_mc_for(n_architectures: int, horizon_days: float, slot_min: float) -> int:
-    """Largest ``n_mc`` the work-units budget and ``MAX_N_MC`` allow for this request shape (>= 1)."""
-    n_slots = max(1, int(float(horizon_days) * 86400.0 / (float(slot_min) * 60.0)))
-    return max(1, min(MAX_N_MC, MAX_WORK_UNITS // max(1, n_architectures * n_slots)))
+def n_slots_for(horizon_days: float, slot_min: float) -> int:
+    return max(1, int(float(horizon_days) * 86400.0 / (float(slot_min) * 60.0)))
+
+
+def max_n_mc_for(n_architectures: int, horizon_days: float, slot_min: float, workers: int = 4) -> int:
+    """Largest ``n_mc`` the budgets and ``MAX_N_MC`` allow for this request shape (>= 1).
+
+    Two budgets: the total work units (``MAX_WORK_UNITS``) and the units one worker runs sequentially
+    (``MAX_UNITS_PER_WORKER``, draws being the unit of parallelism), so n_mc <= workers x
+    floor(MAX_UNITS_PER_WORKER / (architectures x slots)).
+    """
+    per_draw = max(1, n_architectures * n_slots_for(horizon_days, slot_min))
+    return max(1, min(MAX_N_MC, MAX_WORK_UNITS // per_draw, max(1, workers) * (MAX_UNITS_PER_WORKER // per_draw)))
 
 
 @router.get("/presets")
@@ -262,9 +277,12 @@ def presets():
         "limits": {
             "n_mc": MAX_N_MC, "horizon_days": MAX_HORIZON_DAYS, "architectures": MAX_ARCHITECTURES,
             "space_sensors_per_architecture": MAX_SPACE_SENSORS, "work_units": MAX_WORK_UNITS,
+            "work_units_per_worker": MAX_UNITS_PER_WORKER,
             "truth_window_days": TRUTH_WINDOW_DAYS,
-            "rule": "n_mc is clamped (not rejected) to min(n_mc limit, work_units // (architectures x slots)), "
-                    "slots = horizon_days x 1440 / slot_min; clamps are reported in meta.caps_applied",
+            "rule": "n_mc is clamped (not rejected) to min(n_mc limit, work_units // (architectures x slots), "
+                    "workers x work_units_per_worker // (architectures x slots)), slots = horizon_days x 1440 / slot_min; "
+                    "clamps are reported in meta.caps_applied. A shape with architectures x slots > work_units_per_worker "
+                    "is rejected with 400 (it could not finish in time even at n_mc = 1).",
             "max_n_mc_examples": {
                 f"{n_presets} presets, 2 d, 20-min slots": max_n_mc_for(n_presets, 2.0, 20.0),
                 f"{n_presets} presets, 7 d, 20-min slots": max_n_mc_for(n_presets, 7.0, 20.0),
@@ -274,7 +292,7 @@ def presets():
         },
         "request_aliases": {"ground_network": "ground", "sensors[].orbit": "sensors[].platform (GEO, L1_halo, L2_halo, DRO, NRHO, resonant_3_1)",
                             "sensors[].slew_rate_dps": "sensors[].slew_rate_deg_s",
-                            "target_radius_m / target_albedo": "reference target population overriding catalog physical parameters"},
+                            "target_radius_m / target_albedo": "reference object population overriding catalog physical parameters"},
         "metric_definitions": {
             "coverage_pct": "fraction of (object, slot node) pairs visible to at least one sensor (geometry + photometry)",
             "custody_pct": "greedy-tasker time fraction with RSS position sigma below custody_threshold_km, from a common stale prior "
@@ -340,12 +358,19 @@ def evaluate_architectures(req: ArchitectureEvaluateRequest):
         if not a.ground and not a.sensors:
             raise HTTPException(400, detail=f"architecture {a.name!r} has neither the ground network nor any space sensor")
     caps: list[str] = []
-    n_mc_max = max_n_mc_for(len(archs), req.horizon_days, req.slot_min)
+    n_slots = n_slots_for(req.horizon_days, req.slot_min)
+    per_draw = len(archs) * n_slots
+    if per_draw > MAX_UNITS_PER_WORKER:
+        raise HTTPException(400, detail=f"{len(archs)} architectures x {n_slots} slots = {per_draw} work units per draw exceeds the "
+                                        f"per-request budget of {MAX_UNITS_PER_WORKER} (~{MAX_UNITS_PER_WORKER * 2.2 / 1000:.0f} s "
+                                        f"sequential even at n_mc = 1); increase slot_min, shorten horizon_days or evaluate fewer "
+                                        f"architectures per call")
+    workers = req.workers if req.executor == "process" else 1
+    n_mc_max = max_n_mc_for(len(archs), req.horizon_days, req.slot_min, workers)
     n_mc = req.n_mc
     if n_mc > n_mc_max:
-        n_slots = int(req.horizon_days * 86400.0 / (req.slot_min * 60.0))
         caps.append(f"n_mc {req.n_mc} -> {n_mc_max} (limit {MAX_N_MC}; work-units budget {MAX_WORK_UNITS} / "
-                    f"({len(archs)} architectures x {n_slots} slots))")
+                    f"({len(archs)} architectures x {n_slots} slots); per-worker budget {MAX_UNITS_PER_WORKER} x {workers} workers)")
         n_mc = n_mc_max
     try:
         cfg = EvalConfig(horizon_days=req.horizon_days, slot_min=req.slot_min, custody_threshold_km=req.custody_threshold_km,

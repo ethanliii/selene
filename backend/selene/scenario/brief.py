@@ -44,6 +44,35 @@ _REASON_PLAIN = {
 }
 
 
+#: Plain-English definitions of the terms the verbatim operator-feed lines use (RTN/VNB are defined again where
+#: the characterisation section uses them; the glossary precedes the timeline so no term appears before its definition).
+_GLOSSARY = [
+    "**tracklet** — a short sequence of angle-only (right ascension / declination) measurements of one object from one sensor "
+    "in one observing pass; the basic observation unit here.",
+    "**residual** (arcsec) — the on-sky distance between where the tracklet saw the object and where the filter predicted it; "
+    "**NIS** (normalised innovation squared) is that residual squared and divided by its expected uncertainty, so values of order "
+    "2 are normal and tens or more are a surprise; **NEES** (normalised estimation error squared) is the same ratio for the state "
+    "error against the SIMULATED truth (a simulation-only realism check).",
+    "**family-wise threshold** — the detection threshold raised so that the chance of ANY false alarm over the whole run (not per "
+    "tracklet) equals the configured false-alarm probability alpha.",
+    "**sigma_pos / 1-sigma position** (km) — the root-sum-square of the position standard deviations, i.e. the radius of the "
+    "position uncertainty; custody is declared on this number.",
+    "**dv** (m/s) — the velocity change (delta-v) of a burn; **RTN** = radial / transverse (along-track) / normal components and "
+    "**VNB** = velocity / normal / bi-normal components of that delta-v in frames tied to the object's own motion.",
+    "**reachable set / rays** — the positions an object could occupy under an ASSUMED delta-v budget, sampled over burn "
+    "directions, magnitudes and epochs (each sample is a 'ray'); fractions are fractions of sampled rays, not probabilities.",
+    "**boresight** — the direction a telescope is pointed; the **p90 spread** is the angular radius containing 90 % of the reachable "
+    "set as seen from that sensor; a **mosaic** is a set of adjacent fields of view tiled around the boresight (its **radius** is "
+    "how far from the boresight the search extends).",
+    "**FOV acquisition model** — the tasker's assumption that an observation only counts if the object actually falls inside the "
+    "field of view (or the mosaic), with the probability of that computed from the predicted uncertainty.",
+    "**log-det gain** — the information gain of a planned observation, measured as the reduction in the log-determinant (volume) "
+    "of the covariance; **trace gain** is the reduction of the position variance.",
+    "**L1 gateway / neck transit** — passing through the neck around the Earth-Moon L1 point from the lunar realm into Earth "
+    "space (or back); grazing the neck and staying in the lunar realm is reported as a closest approach, not a transit.",
+]
+
+
 def _f(x, nd=1, unit="", missing="n/a") -> str:
     if x is None:
         return missing
@@ -162,10 +191,14 @@ def generate_brief(meta: dict, metrics: dict, events: list[dict], generated_utc:
                     f"recommendation: keep elevated custody on {prot} and run conjunction screening for {relay}. No intent is inferred.")
     L.extend(f"- {b}" for b in bluf)
     L.append("")
+    # ---- glossary (the timeline below quotes the operator feed verbatim, so its terms are defined here first) -----
+    L.append("## Terms used below")
+    L.extend(f"- {t}" for t in _GLOSSARY)
+    L.append("")
     # ---- timeline ------------------------------------------------------------------------
     L.append("## Timeline (UTC)")
     keep = {"custody_nominal", "maneuver", "maneuver_detected", "custody_degraded", "custody_lost", "reachability_alert",
-            "tasking_update", "custody_regained", "entered_region", "maneuver_characterised", "brief_ready"}
+            "tasking_update", "custody_regained", "entered_region", "closest_approach", "maneuver_characterised", "brief_ready"}
     for e in events:
         if e.get("kind") in keep or (e.get("kind") == "observation" and e.get("data", {}).get("reacquired")):
             L.append(f"- `{e.get('t_utc', '')}` **{e.get('kind')}** — {e.get('text')}")
@@ -234,7 +267,13 @@ def generate_brief(meta: dict, metrics: dict, events: list[dict], generated_utc:
     if unreached:
         L.append(f"- Not reachable within budget and horizon: " + "; ".join(unreached) + ".")
     tg = m.get("truth_geometry", {})
-    L.append(f"- SIMULATED truth for reference: closest approach to L1 {_f(tg.get('min_dist_to_L1_km'), 0, ' km')} at {_utc(tg.get('t_min_dist_to_L1_utc'))}; "
+    transit = tg.get("l1_transit")
+    transit_txt = ("" if transit is None else
+                   (" and transits the L1 neck into Earth space" if transit else
+                    f" but does NOT transit the L1 neck (it stays in the lunar realm; the unperturbed orbit would have come no closer than "
+                    f"{_f(tg.get('min_dist_to_L1_unperturbed_km'), 0, ' km')} in this window)"))
+    L.append(f"- SIMULATED truth for reference: the burned arc passes {_f(tg.get('min_dist_to_L1_km'), 0, ' km')} from L1 at "
+             f"{_utc(tg.get('t_min_dist_to_L1_utc'))} (closest approach refined on the dense solution){transit_txt}; "
              f"closest approach to {relay} {_f(tg.get('min_dist_to_relay_km'), 0, ' km')} at {_utc(tg.get('t_min_dist_to_relay_utc'))}.")
     L.append("")
     # ---- tasking -------------------------------------------------------------------------

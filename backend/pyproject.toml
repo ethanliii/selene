@@ -7,13 +7,30 @@ name = "selene"
 version = "0.1.0"
 description = "SELENE - cislunar space domain awareness (custody, maneuver detection, reachability, sensor tasking, architecture trades)"
 requires-python = ">=3.11"
+# Compatible-release bounds around the versions the suite was validated with (requirements.lock is the
+# exact freeze used by the Docker image and `make setup-py`).  numba pins numpy per release and FastAPI
+# 0.142 changed router object types, so an unbounded resolve could break the offline demo on a fresh machine.
 dependencies = [
-  "fastapi", "uvicorn[standard]", "numpy", "scipy", "numba", "jplephem", "skyfield",
-  "astropy", "pyarrow", "pandas", "pydantic", "httpx", "python-dotenv", "pyyaml",
+  "fastapi>=0.115,<0.143",
+  "uvicorn[standard]>=0.30,<0.55",
+  "starlette>=0.40,<1.8",
+  "numpy>=2.0,<2.6",
+  "scipy>=1.14,<1.19",
+  "numba>=0.61,<0.69",
+  "llvmlite>=0.44,<0.51",
+  "jplephem>=2.21,<3",
+  "skyfield>=1.49,<2",
+  "astropy>=6.1,<8.1",
+  "pyarrow>=16,<26",
+  "pandas>=2.2,<3.1",
+  "pydantic>=2.7,<2.14",
+  "httpx>=0.27,<0.29",
+  "python-dotenv>=1.0,<2",
+  "pyyaml>=6,<7",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-xdist", "httpx"]
+dev = ["pytest>=8,<10", "pytest-xdist>=3.5,<4", "httpx>=0.27,<0.29"]
 
 [tool.setuptools.packages.find]
 include = ["selene*"]
@@ -21,4 +38,5 @@ include = ["selene*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q -p no:cacheprovider"
+markers = ["slow: long-running statistical tests (deselected by `make test-fast`)"]
 filterwarnings = ["ignore::DeprecationWarning", "ignore::numba.NumbaPerformanceWarning"]

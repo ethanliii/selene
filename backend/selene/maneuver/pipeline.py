@@ -254,7 +254,7 @@ STATUS_NOTES = {
 
 def _utc(t_s: float) -> str:
     from astropy.time import Time
-    return str(Time(J2000_JD, float(t_s) / 86400.0, format="jd", scale="tdb").utc.isot)[:23]
+    return str(Time(J2000_JD, float(t_s) / 86400.0, format="jd", scale="tdb").utc.isot)[:23] + "Z"
 
 
 def run_scenario(object_id: str, t0_s: float, t1_s: float, sensor_ids: Optional[Sequence[str]] = None,

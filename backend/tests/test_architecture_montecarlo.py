@@ -228,7 +228,7 @@ def test_target_population_override_changes_photometric_coverage():
     cb, cs = big.scores[0].stats["coverage_pct"], small.scores[0].stats["coverage_pct"]
     print(f"\ntarget override: 5 m / 0.6 -> coverage {cb:.1f} %, 0.3 m / 0.05 -> {cs:.1f} %")
     assert cb > cs
-    assert big.config.as_dict()["target_note"].startswith("reference target population")
+    assert big.config.as_dict()["target_note"].startswith("reference object population")
 
 
 def test_validation_errors():

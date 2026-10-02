@@ -20,7 +20,7 @@ from typing import Any, Literal, Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from selene.api.routes.catalog import parse_utc, round_floats
+from selene.api.routes.catalog import err_detail, parse_utc, round_floats
 from selene.dynamics.frames import DEMO_EPOCH_UTC
 from selene.maneuver.config import DetectorConfig, EstimatorConfig, FilterConfig
 from selene.maneuver.pipeline import run_scenario
@@ -29,7 +29,9 @@ from selene.maneuver.synthetic import DIRECTION_NAMES
 router = APIRouter(prefix="/maneuver", tags=["maneuver"])
 
 MAX_SPAN_DAYS = 30.0
-MAX_EPOCHS = 2000
+#: budget on epochs x max_obs_per_epoch (sequential filter updates, ~2-3 ms each plus the truth
+#: propagation): 2 000 keeps the route under ~5 s; 29 d / 30 min / 6 per epoch was 8 352 updates and 19 s
+MAX_OBSERVATIONS = 2000
 
 
 class InjectedBurn(BaseModel):
@@ -83,11 +85,14 @@ def maneuver_detect(req: ManeuverDetectRequest):
     t1_s = parse_utc(req.t1, "t1") if req.t1 else t0_s + 7 * 86400.0
     if t1_s <= t0_s:
         raise HTTPException(400, detail="t1 must be after t0")
-    if (t1_s - t0_s) > MAX_SPAN_DAYS * 86400.0:
+    if (t1_s - t0_s) > MAX_SPAN_DAYS * 86400.0 + 60.0:   # 60 s tolerance: the cap is meant in UTC, t_s is TDB
         raise HTTPException(400, detail=f"span must be <= {MAX_SPAN_DAYS:.0f} days")
     cadence_s = req.cadence_min * 60.0
-    if (t1_s - t0_s) / cadence_s > MAX_EPOCHS:
-        raise HTTPException(400, detail=f"too many epochs (> {MAX_EPOCHS}); increase cadence_min")
+    n_epochs = int((t1_s - t0_s) / cadence_s) + 1
+    if n_epochs * req.max_obs_per_epoch > MAX_OBSERVATIONS:
+        raise HTTPException(400, detail=f"{n_epochs} epochs x {req.max_obs_per_epoch} observations per epoch exceeds the per-request "
+                                        f"budget of {MAX_OBSERVATIONS} filter updates; increase cadence_min, shorten the window or lower "
+                                        f"max_obs_per_epoch")
     burn = None
     if req.injected is not None:
         tb = parse_utc(req.injected.t_burn_utc, "t_burn_utc")
@@ -105,9 +110,9 @@ def maneuver_detect(req: ManeuverDetectRequest):
         res = run_scenario(req.object_id, t0_s, t1_s, req.sensors, cadence_s, req.sigma_arcsec, burn, req.seed,
                            det_cfg, EstimatorConfig(), filt_cfg, req.filter, req.estimate, req.max_obs_per_epoch)
     except KeyError as e:
-        raise HTTPException(404, detail=str(e))
+        raise HTTPException(404, detail=err_detail(e))
     except ValueError as e:
-        raise HTTPException(400, detail=str(e))
+        raise HTTPException(400, detail=err_detail(e))
     except RuntimeError as e:
         raise HTTPException(500, detail=str(e))
     payload = round_floats(res.as_dict(), 8)

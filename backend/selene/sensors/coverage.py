@@ -241,7 +241,7 @@ def compute_coverage(t0_s: float, t1_s: float, n_t: int = 168, network: NetworkS
         "radius_m": float(radius_m), "albedo": float(albedo), "margin_mag": float(margin_mag),
         "network": network if isinstance(network, str) else "custom",
         "elapsed_s": round(_time.perf_counter() - tic, 3), "per_sensor_s": timings,
-        "reference_object": "diffuse sphere (Lambertian), SIMULATED reference target",
+        "reference_object": "diffuse sphere (Lambertian), SIMULATED reference object",
         "note": "Coverage = any sensor has zero geometric+photometric violations; FOV/slew not applied.",
     }
     return CoverageResult(g, t, coverage, per_time_pct, reason_dominant, reason_fraction,

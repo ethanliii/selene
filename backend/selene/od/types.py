@@ -27,7 +27,7 @@ def tdb_s_to_utc_iso(t_s) -> list[str]:
     if t.size == 0:
         return []
     iso = Time(J2000_JD, t / 86400.0, format="jd", scale="tdb").utc.isot
-    return [str(x)[:23] for x in np.atleast_1d(iso)]
+    return [str(x)[:23] + "Z" for x in np.atleast_1d(iso)]   # explicit UTC designator: JS Date.parse() would read a bare string as local time
 
 
 def jsonable(x: Any):

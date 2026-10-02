@@ -1,25 +1,31 @@
 """POST /api/coverage — cislunar coverage heatmap for a sensor network."""
 from __future__ import annotations
 
-from typing import Any, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from selene.api.observer_spec import SpaceObserverIn
+from selene.api.routes.catalog import err_detail, parse_utc, tdb_s_to_utc_iso
 from selene.dynamics.frames import DEMO_EPOCH_UTC
 from selene.sensors.coverage import NETWORK_PRESETS, compute_coverage
-from selene.time import seconds_since_j2000_tdb
 
 router = APIRouter(prefix="/coverage", tags=["coverage"])
 
 
 class CustomNetwork(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     ground_ids: list[str] = Field(default_factory=list)
-    space: list[Union[str, dict[str, Any]]] = Field(default_factory=list,
-                                                   description="observer ids or SpaceObserver kwargs")
+    space: list[Union[str, SpaceObserverIn]] = Field(default_factory=list,
+                                                     description="observer ids or validated SpaceObserver specs "
+                                                                 "(id, platform_orbit required)")
 
 
 class CoverageRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")   # a misspelt key (e.g. 'preset') must not silently run the default network
+
     t0: str = Field(DEMO_EPOCH_UTC, description="UTC ISO start")
     t1: Optional[str] = Field(None, description="UTC ISO end; default t0 + 7 days")
     n_t: int = Field(168, ge=2, le=720,
@@ -33,7 +39,9 @@ class CoverageRequest(BaseModel):
 
 
 class PerTime(BaseModel):
-    t: float
+    t: float                    # TDB seconds past J2000 (kept for existing clients; same as tdb_s)
+    tdb_s: float
+    utc: str
     pct: float
 
 
@@ -45,6 +53,8 @@ class CoverageResponse(BaseModel):
     reason_fraction: dict[str, list[float]]
     n_sensors_visible: list[float]
     per_time: list[PerTime]
+    epochs_utc: list[str]
+    tdb_s: list[float]
     meta: dict
 
 
@@ -55,20 +65,28 @@ def presets():
 
 @router.post("", response_model=CoverageResponse)
 def coverage(req: CoverageRequest):
-    t0_s = float(seconds_since_j2000_tdb(req.t0))
-    t1_s = float(seconds_since_j2000_tdb(req.t1)) if req.t1 else t0_s + 7 * 86400.0
+    t0_s = parse_utc(req.t0, "t0")
+    t1_s = parse_utc(req.t1, "t1") if req.t1 else t0_s + 7 * 86400.0
     if t1_s <= t0_s:
         raise HTTPException(400, detail="t1 must be after t0")
     if req.grid == "3d" and req.n_t > 400:
         raise HTTPException(400, detail="3d grid limited to n_t <= 400 to bound runtime")
-    net = req.network if isinstance(req.network, str) else req.network.model_dump()
+    if isinstance(req.network, str):
+        net = req.network
+    else:
+        net = {"ground_ids": list(req.network.ground_ids),
+               "space": [s if isinstance(s, str) else s.build() for s in req.network.space]}
     try:
         res = compute_coverage(t0_s, t1_s, req.n_t, net, req.grid, req.radius_m, req.albedo, req.margin_mag)
-    except KeyError as e:
-        raise HTTPException(400, detail=str(e))
-    except ValueError as e:
-        raise HTTPException(400, detail=str(e))
+    except (KeyError, ValueError, TypeError) as e:
+        raise HTTPException(400, detail=err_detail(e))
     d = res.as_dict()
-    d["meta"]["t0_utc"] = req.t0
-    d["meta"]["t1_utc"] = req.t1
+    utc = tdb_s_to_utc_iso(res.t_s)
+    d["per_time"] = [{**p, "tdb_s": p["t"], "utc": u} for p, u in zip(d["per_time"], utc)]
+    d["epochs_utc"] = utc
+    d["tdb_s"] = [float(x) for x in res.t_s]
+    d["meta"]["t0_utc"] = tdb_s_to_utc_iso(t0_s)[0]
+    d["meta"]["t1_utc"] = tdb_s_to_utc_iso(t1_s)[0]
+    d["meta"]["t0_requested"] = req.t0
+    d["meta"]["t1_requested"] = req.t1
     return CoverageResponse(**d)

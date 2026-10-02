@@ -320,7 +320,7 @@ def _horizons_entry(o: hz.HorizonsObject, epoch_s: float) -> CatalogEntry:
         orbit_ref=None,
         source=f"JPL Horizons id {o.id} ({md.get('trajectory_source') or 'Horizons'}), fetched {md.get('fetched_utc')}",
         description=f"{o.name}: real cislunar object, regime '{regime}'.",
-        role="real spacecraft (reference / custody target)",
+        role="real spacecraft (reference / custody object)",
         epoch_s=epoch_s,
         physical=None,
         horizons=o,
