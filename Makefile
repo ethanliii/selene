@@ -7,9 +7,16 @@ NODE_BIN := $(ROOT)/.tools/node/bin
 export PATH := $(NODE_BIN):$(ROOT)/.venv/bin:$(PATH)
 export NUMBA_CACHE_DIR := $(ROOT)/.numba_cache
 
-.PHONY: setup setup-py setup-js test test-fast dev api web build precompute demo clean
+.PHONY: setup setup-py setup-js data test test-fast dev api web build precompute demo clean
 
-setup: setup-py setup-js
+setup: setup-py setup-js data
+
+# Fetch the JPL kernels (≈33 MB) if they are not cached yet; everything else is committed.
+NAIF := https://naif.jpl.nasa.gov/pub/naif/generic_kernels
+data:
+	@mkdir -p $(ROOT)/data/cache
+	@test -s $(ROOT)/data/cache/de440s.bsp || curl -fL --retry 3 -o $(ROOT)/data/cache/de440s.bsp $(NAIF)/spk/planets/de440s.bsp
+	@test -s $(ROOT)/data/cache/gm_de440.tpc || curl -fL --retry 3 -o $(ROOT)/data/cache/gm_de440.tpc $(NAIF)/pck/gm_de440.tpc
 
 setup-py:
 	@test -x $(PY) || python3 -m venv $(ROOT)/.venv

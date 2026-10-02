@@ -4,7 +4,7 @@
 |-----------|--------|-------|
 | 0 Skeleton & tooling | done | pyproject, Makefile, FastAPI app w/ lazy routers, health test, Docker |
 | 1 Dynamics | done | CR3BP (numba), DE440s ephemeris N-body + SRP, instantaneous rotating frame, Trajectory; 40 tests. Jacobi drift 6.5e-11/10 periods; CR3BP vs ephemeris 475 km over 2 d |
-| 2 Orbit library | done | 342 periodic orbits in 9 families (L1/L2 Lyapunov, L1/L2 halo N/S incl. NRHOs, DRO, 3:1 & 2:1 resonant); 9:2 NRHO located (T=6.5624 d, perilune 3249 km); validated vs JPL catalog; notional catalog (11 SIMULATED + 7 Horizons) + catalog/orbits/ephemeris routes |
+| 2 Orbit library | done | 325 periodic orbits in 9 families (L1/L2 Lyapunov, L1/L2 halo N/S incl. NRHOs, DRO, 3:1 & 2:1 resonant); 9:2 NRHO located (T=6.5624 d, perilune 3249 km); validated vs JPL catalog; notional catalog (11 SIMULATED + 7 Horizons) + catalog/orbits/ephemeris routes |
 | 3 Sensors & coverage | done | 9 notional ground sites + 6 space observers, Lambertian photometry (hand-verified incl. π factor), Sun/Moon/Earth exclusion, lunar-glare model, eclipse, coverage heatmap route (<1.5 s) |
 | 4 Orbit determination | done | angles-only IOD (two-range shooting under DE440s dynamics, analytic Jacobian), batch WLS, stacked-sigma-point UKF + iterated update, EKF, particle clouds (2000×7 d in 0.07 s), NEES/NIS realism MC; POST /api/od/run ~1 s |
 | 5 Maneuver detection | done | per-update/windowed NIS, gap re-fit Mahalanobis, NEES monitor, CUSUM; Pfa 0.0100 at α=0.01 (4800 updates); 5 m/s burn detected on first post-burn obs; Δv est. error ~0.2 % / 0.14° with 10 obs; POST /api/maneuver/detect |

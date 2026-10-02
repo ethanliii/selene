@@ -100,4 +100,5 @@ def sensor_visibility(
     t_s = np.linspace(t0_s, t1_s, int(n))
     track = _object_track(object_id, t_s)
     res = visibility(sensor, track, t_s, radius_m, albedo).as_dict()
+    res.pop("sensor_id", None)
     return VisibilityResponse(sensor_id=sensor_id, object_id=object_id, t0=t0, t1=t1 or "", n=int(n), **res)
