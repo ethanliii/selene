@@ -1,0 +1,625 @@
+{
+ "baseUrl": "http://127.0.0.1:8000",
+ "outDir": ".tools/screenshots",
+ "width": 1920,
+ "height": 1080,
+ "scale": 2,
+ "steps": [
+  {
+   "name": "hero",
+   "url": "/ops?demo=1&t=241201&tab=events",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar') && document.querySelector('.caption')",
+   "wait": 4000,
+   "then": [
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('EARTH'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 4
+     },
+     "wait": 2500
+    },
+    {
+     "js": "document.querySelectorAll('.toasts').forEach(e=>e.style.visibility='hidden')",
+     "wait": 600
+    }
+   ]
+  },
+  {
+   "name": "demo-4-lost",
+   "url": "/ops?demo=1&t=241201&tab=events&view=moon",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar') && document.querySelector('.caption')",
+   "wait": 4000,
+   "then": [
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('SIM-DRO-01'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 10
+     },
+     "wait": 2500
+    },
+    {
+     "js": "document.querySelectorAll('.toasts').forEach(e=>e.style.visibility='hidden')",
+     "wait": 400
+    }
+   ]
+  },
+  {
+   "name": "ops-overview",
+   "url": "/ops?select=SIM-DRO-01&tab=object",
+   "waitFor": "!document.querySelector('.loadbar') && (document.querySelector('.hud')?.textContent||'').includes('CATALOG')",
+   "waitForTimeout": 90000,
+   "wait": 3000,
+   "then": [
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('EARTH'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 6
+     },
+     "wait": 2500
+    },
+    {
+     "js": "[...document.querySelectorAll('.dock li')].find(li=>li.textContent.includes('SIM-DRO-01'))?.click()",
+     "wait": 6000
+    }
+   ]
+  },
+  {
+   "name": "demo-2-detected",
+   "url": "/ops?demo=1&t=203500&tab=events",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar')",
+   "wait": 3000,
+   "then": [
+    {
+     "js": "document.querySelector('button[aria-label=\"Next event\"]').click()",
+     "wait": 3500
+    },
+    {
+     "js": "(()=>{const c=document.querySelector('ul.events li.current .detail');if(c)c.classList.add('clamp');const m=[...document.querySelectorAll('ul.events li')].find(li=>/maneuver detected/i.test(li.querySelector('.kind')?.textContent||''));m.querySelector('button.chev').click();return !!m})()",
+     "wait": 800
+    },
+    {
+     "js": "(()=>{document.querySelectorAll('.toasts').forEach(e=>e.style.visibility='hidden');const m=[...document.querySelectorAll('ul.events li')].find(li=>/maneuver detected/i.test(li.querySelector('.kind')?.textContent||''));m.scrollIntoView({block:'center'});return true})()",
+     "wait": 1500
+    }
+   ]
+  },
+  {
+   "name": "demo-5-regained",
+   "url": "/ops?demo=1&t=244801&tab=events",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar') && document.querySelector('.caption')",
+   "wait": 4000
+  },
+  {
+   "name": "demo-6-brief",
+   "url": "/ops?demo=1&t=252002&tab=brief",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar')",
+   "wait": 4000
+  },
+  {
+   "name": "an-ready",
+   "url": "/ops?tab=analysis&select=SIM-DRO-01",
+   "noShot": true,
+   "waitFor": "!document.querySelector('.loadbar') && (document.querySelector('.hud')?.textContent||'').includes('CATALOG') && document.querySelector('.an-runbar button') && !document.querySelector('.an-runbar button').disabled",
+   "waitForTimeout": 90000,
+   "wait": 1000
+  },
+  {
+   "name": "analysis-od",
+   "js": "document.querySelector('.an-runbar button').click()",
+   "wait": 1000,
+   "then": [
+    {
+     "waitFor": "!document.querySelector('.an-runbar .spinner') && (document.querySelector('.an-status')||document.querySelector('.an-error'))",
+     "waitForTimeout": 120000,
+     "wait": 1000
+    },
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Moon').click()",
+     "wait": 2500
+    },
+    {
+     "js": "(()=>{const e=[...document.querySelectorAll('.dock h4.an-h')].find(x=>x.textContent.includes('Solutions'));const b=document.querySelector('.dock-body');b.scrollTop+=e.getBoundingClientRect().top-b.getBoundingClientRect().top-(8);return b.scrollTop})()",
+     "wait": 2000
+    }
+   ]
+  },
+  {
+   "name": "analysis-maneuver",
+   "js": "document.querySelectorAll('.an-tabs button')[1].click()",
+   "wait": 600,
+   "then": [
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Earth–Moon').click()",
+     "wait": 1500
+    },
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('EARTH'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 5
+     },
+     "wait": 2500
+    },
+    {
+     "js": "document.querySelector('.an-runbar button').click()",
+     "wait": 1000
+    },
+    {
+     "waitFor": "!document.querySelector('.an-runbar .spinner') && (document.querySelector('.an-status')||document.querySelector('.an-error'))",
+     "waitForTimeout": 120000,
+     "wait": 1000
+    },
+    {
+     "js": "(()=>{const e=[...document.querySelectorAll('.dock h4.an-h')].find(x=>x.textContent.includes('NIS per update'));const b=document.querySelector('.dock-body');b.scrollTop+=e.getBoundingClientRect().top-b.getBoundingClientRect().top-(120);return b.scrollTop})()",
+     "wait": 2000
+    }
+   ]
+  },
+  {
+   "name": "analysis-reach",
+   "js": "document.querySelectorAll('.an-tabs button')[2].click()",
+   "wait": 600,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelectorAll('.an-ctls input[type=range]')[0];const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(100));i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));return i.value})()",
+     "wait": 200
+    },
+    {
+     "js": "(()=>{const i=document.querySelectorAll('.an-ctls input[type=range]')[1];const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(168));i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}));return i.value})()",
+     "wait": 300
+    },
+    {
+     "js": "document.querySelector('.an-runbar button').click()",
+     "wait": 1000
+    },
+    {
+     "waitFor": "!document.querySelector('.an-runbar .spinner') && (document.querySelector('.an-status')||document.querySelector('.an-error'))",
+     "waitForTimeout": 180000,
+     "wait": 1000
+    },
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Moon').click()",
+     "wait": 2500
+    },
+    {
+     "js": "(()=>{const e=[...document.querySelectorAll('.dock h4.an-h')].find(x=>x.textContent.includes('Regions within'));const b=document.querySelector('.dock-body');b.scrollTop+=e.getBoundingClientRect().top-b.getBoundingClientRect().top-(110);return b.scrollTop})()",
+     "wait": 2000
+    }
+   ]
+  },
+  {
+   "name": "analysis-tasking",
+   "js": "document.querySelectorAll('.an-tabs button')[3].click()",
+   "wait": 600,
+   "then": [
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Earth–Moon').click()",
+     "wait": 1500
+    },
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('EARTH'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 5
+     },
+     "wait": 2500
+    },
+    {
+     "js": "(()=>{const i=document.querySelectorAll('.an-ctls select')[0];const s=Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set;s.call(i,'compare');i.dispatchEvent(new Event('change',{bubbles:true}));return i.value})()",
+     "wait": 300
+    },
+    {
+     "js": "document.querySelector('.an-runbar button').click()",
+     "wait": 1000
+    },
+    {
+     "waitFor": "!document.querySelector('.an-runbar .spinner') && (document.querySelector('.an-status')||document.querySelector('.an-error'))",
+     "waitForTimeout": 240000,
+     "wait": 1000
+    },
+    {
+     "js": "(()=>{const e=[...document.querySelectorAll('.dock h4.an-h')].find(x=>x.textContent.includes('Schedule'));const b=document.querySelector('.dock-body');b.scrollTop+=e.getBoundingClientRect().top-b.getBoundingClientRect().top-(8);return b.scrollTop})()",
+     "wait": 2000
+    }
+   ]
+  },
+  {
+   "name": "coverage",
+   "url": "/coverage?network=ground_plus_dro",
+   "waitFor": "(()=>{const b=document.querySelector('button.primary.wide');return b&&!b.disabled})()",
+   "waitForTimeout": 60000,
+   "wait": 1000,
+   "then": [
+    {
+     "js": "document.querySelector('button.primary.wide').click()",
+     "wait": 1500
+    },
+    {
+     "waitFor": "!document.querySelector('button.primary.wide').disabled && !document.querySelector('.progress-thin')",
+     "waitForTimeout": 240000,
+     "wait": 3000
+    }
+   ]
+  },
+  {
+   "name": "architecture",
+   "url": "/architecture",
+   "waitFor": "[...document.querySelectorAll('button')].some(b=>b.textContent.includes('Load backend presets')&&!b.disabled)",
+   "waitForTimeout": 60000,
+   "wait": 1000,
+   "then": [
+    {
+     "js": "[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Load backend presets')).click()",
+     "wait": 500
+    },
+    {
+     "waitFor": "[...document.querySelectorAll('.hint')].some(h=>/presets loaded/.test(h.textContent))",
+     "waitForTimeout": 30000,
+     "wait": 800
+    },
+    {
+     "js": "document.querySelector('.run-btn').click()",
+     "wait": 1500
+    },
+    {
+     "waitFor": "document.querySelector('.results-table') && !document.querySelector('.run-btn').disabled",
+     "waitForTimeout": 300000,
+     "wait": 3000
+    }
+   ]
+  },
+  {
+   "name": "gif-01",
+   "scale": 1,
+   "url": "/ops?demo=1&t=100000&tab=events",
+   "waitFor": "(document.querySelector('.hud')?.textContent||'').includes('SCENARIO') && !document.querySelector('.loadbar')",
+   "wait": 4000
+  },
+  {
+   "name": "gif-02",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((201700-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-03",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((203401-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-04",
+   "scale": 1,
+   "then": [
+    {
+     "js": "document.querySelector('button[aria-label=\"Next event\"]').click()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-05",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((208000-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 300
+    },
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((208801-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-06",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((223200-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-07",
+   "scale": 1,
+   "then": [
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Moon').click()",
+     "wait": 1500
+    },
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((241201-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 1500
+    },
+    {
+     "drag": {
+      "button": "right",
+      "from": "(()=>{const f=t=>{const e=[...document.querySelectorAll('.viewport *')].find(e=>e.children.length===0&&e.textContent.trim()===t);const r=e.getBoundingClientRect();return [r.left,r.top+r.height/2]};const p=f('SIM-DRO-01'),q=f('MOON');return [(p[0]+q[0])/2,(p[1]+q[1])/2]})()",
+      "to": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "steps": 20
+     },
+     "wait": 1200
+    },
+    {
+     "wheel": {
+      "at": "(()=>{const r=document.querySelector('.viewport').getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})()",
+      "deltaY": -100,
+      "times": 10
+     },
+     "wait": 2500
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-08",
+   "scale": 1,
+   "then": [
+    {
+     "js": "[...document.querySelectorAll('.cam-presets button')].find(b=>b.textContent.trim()==='Earth–Moon').click()",
+     "wait": 1500
+    },
+    {
+     "js": "document.querySelector('button[aria-label=\"Next event\"]').click()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-09",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((244000-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 300
+    },
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((244801-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-10",
+   "scale": 1,
+   "then": [
+    {
+     "js": "document.querySelector('button[aria-label=\"Next event\"]').click()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  },
+  {
+   "name": "gif-11",
+   "scale": 1,
+   "then": [
+    {
+     "js": "(()=>{const i=document.querySelector('input[aria-label=\"Time cursor\"]');const st=+i.step||1,mn=+i.min;const v=mn+Math.ceil((252002-mn)/st)*st;const s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;s.call(i,String(v));i.dispatchEvent(new Event('input',{bubbles:true}));return v})()",
+     "wait": 3200
+    }
+   ],
+   "wait": 300
+  }
+ ],
+ "outputs": {
+  "jpeg": {
+   "maxSide": 1920,
+   "quality": 85,
+   "maxBytes": 460800
+  },
+  "images": [
+   {
+    "from": "hero",
+    "to": "docs/images/hero.jpg"
+   },
+   {
+    "from": "ops-overview",
+    "to": "docs/images/ops-overview.jpg"
+   },
+   {
+    "from": "demo-2-detected",
+    "to": "docs/images/demo-2-detected.jpg"
+   },
+   {
+    "from": "demo-4-lost",
+    "to": "docs/images/demo-4-lost.jpg"
+   },
+   {
+    "from": "demo-5-regained",
+    "to": "docs/images/demo-5-regained.jpg"
+   },
+   {
+    "from": "demo-6-brief",
+    "to": "docs/images/demo-6-brief.jpg"
+   },
+   {
+    "from": "demo-6-brief",
+    "to": "docs/images/demo-6-brief-panel.jpg",
+    "crop": [
+     1548,
+     180,
+     1920,
+     893
+    ]
+   },
+   {
+    "from": "analysis-od",
+    "to": "docs/images/analysis-od.jpg"
+   },
+   {
+    "from": "analysis-od",
+    "to": "docs/images/analysis-od-panel.jpg",
+    "crop": [
+     1548,
+     100,
+     1920,
+     695
+    ]
+   },
+   {
+    "from": "analysis-maneuver",
+    "to": "docs/images/analysis-maneuver.jpg"
+   },
+   {
+    "from": "analysis-maneuver",
+    "to": "docs/images/analysis-maneuver-panel.jpg",
+    "crop": [
+     1548,
+     262,
+     1920,
+     870
+    ]
+   },
+   {
+    "from": "analysis-reach",
+    "to": "docs/images/analysis-reach.jpg"
+   },
+   {
+    "from": "analysis-reach",
+    "to": "docs/images/analysis-reach-panel.jpg",
+    "crop": [
+     1548,
+     130,
+     1920,
+     720
+    ]
+   },
+   {
+    "from": "analysis-tasking",
+    "to": "docs/images/analysis-tasking.jpg"
+   },
+   {
+    "from": "analysis-tasking",
+    "to": "docs/images/analysis-tasking-panel.jpg",
+    "crop": [
+     1548,
+     100,
+     1920,
+     915
+    ]
+   },
+   {
+    "from": "coverage",
+    "to": "docs/images/coverage.jpg"
+   },
+   {
+    "from": "architecture",
+    "to": "docs/images/architecture.jpg"
+   }
+  ],
+  "gif": {
+   "to": "docs/images/demo.gif",
+   "width": 960,
+   "colors": 256,
+   "maxBytes": 6291456,
+   "frames": [
+    {
+     "from": "gif-02",
+     "ms": 1800
+    },
+    {
+     "from": "gif-03",
+     "ms": 1600
+    },
+    {
+     "from": "gif-04",
+     "ms": 1600
+    },
+    {
+     "from": "gif-05",
+     "ms": 1800
+    },
+    {
+     "from": "gif-06",
+     "ms": 1200
+    },
+    {
+     "from": "gif-07",
+     "ms": 2000
+    },
+    {
+     "from": "gif-08",
+     "ms": 1600
+    },
+    {
+     "from": "gif-09",
+     "ms": 1800
+    },
+    {
+     "from": "gif-10",
+     "ms": 1600
+    },
+    {
+     "from": "gif-11",
+     "ms": 4500
+    }
+   ]
+  }
+ }
+}
